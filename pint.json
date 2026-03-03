@@ -3,6 +3,9 @@
     "rules": {
         "concat_space": {
             "spacing": "one"
+        },
+        "binary_operator_spaces": {
+            "default": "single_space"
         }
     }
 }
