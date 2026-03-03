@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Supertab\Connect\Result;
+
+use Supertab\Connect\Enum\HandlerAction;
+
+final class BlockResult extends HandlerResult
+{
+    /**
+     * @param  array<string, string>  $headers
+     */
+    public function __construct(
+        public int $status,
+        public string $body,
+        public array $headers,
+    ) {
+        parent::__construct(HandlerAction::BLOCK);
+    }
+}
