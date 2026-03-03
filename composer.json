@@ -1,0 +1,46 @@
+{
+    "name": "getsupertab/connect-sdk-php",
+    "description": "Supertab Connect SDK for PHP — License token verification and enforcement",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["supertab", "connect", "license", "jwt", "rsl"],
+    "homepage": "https://github.com/getsupertab/connect-sdk-php",
+    "authors": [
+        {
+            "name": "Supertab",
+            "homepage": "https://supertab.co"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "ext-simplexml": "*",
+        "firebase/php-jwt": "^7.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.27",
+        "phpunit/phpunit": "^10.5 || ^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Supertab\\Connect\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Supertab\\Connect\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit",
+        "lint": "pint",
+        "lint:check": "pint --test",
+        "demo": "php demo/bot.php"
+    },
+    "minimum-stability": "stable"
+}
