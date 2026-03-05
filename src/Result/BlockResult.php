@@ -14,8 +14,8 @@ final class BlockResult extends HandlerResult
     public function __construct(
         public int $status,
         public string $body,
-        public array $headers,
+        array $headers,
     ) {
-        parent::__construct(HandlerAction::BLOCK);
+        parent::__construct(HandlerAction::BLOCK, $headers);
     }
 }

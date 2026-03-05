@@ -12,8 +12,8 @@ final class AllowResult extends HandlerResult
      * @param  array<string, string>  $headers
      */
     public function __construct(
-        public array $headers = [],
+        array $headers = [],
     ) {
-        parent::__construct(HandlerAction::ALLOW);
+        parent::__construct(HandlerAction::ALLOW, $headers);
     }
 }
