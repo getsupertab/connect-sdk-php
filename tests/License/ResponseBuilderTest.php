@@ -105,7 +105,7 @@ final class ResponseBuilderTest extends TestCase
     {
         $result = ResponseBuilder::buildBlockResult(
             LicenseTokenInvalidReason::EXPIRED,
-            "Evil\r\nheader: injection",
+            "Some\r\nmalicious\r\nheader\r\n: injection",
             'https://example.com/article',
         );
 
