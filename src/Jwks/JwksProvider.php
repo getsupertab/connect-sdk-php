@@ -6,8 +6,8 @@ namespace Supertab\Connect\Jwks;
 
 use Firebase\JWT\JWK;
 use Firebase\JWT\Key;
-use Supertab\Connect\Exception\JwksKeyNotFoundException;
 use Supertab\Connect\Exception\HttpException;
+use Supertab\Connect\Exception\JwksKeyNotFoundException;
 use Supertab\Connect\Http\HttpClientInterface;
 
 final class JwksProvider implements JwksProviderInterface
