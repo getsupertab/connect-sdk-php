@@ -13,6 +13,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use Firebase\JWT\JWT;
+use Supertab\Connect\Bot\DefaultBotDetector;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Http\HttpClient;
 use Supertab\Connect\Http\HttpClientInterface;
@@ -83,6 +84,7 @@ $connect = new SupertabConnect(
     enforcement: EnforcementMode::STRICT,
     baseUrl: $baseUrl,
     httpClient: $httpClient,
+    botDetector: new DefaultBotDetector,
 );
 
 // ── Routing ──────────────────────────────────────────────

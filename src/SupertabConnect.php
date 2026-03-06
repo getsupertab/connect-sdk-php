@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Supertab\Connect;
 
+use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Customer\LicenseTokenClient;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
@@ -30,6 +31,8 @@ final class SupertabConnect
 
     private readonly EventRecorder $eventRecorder;
 
+    private readonly ?BotDetectorInterface $botDetector;
+
     /**
      * Create a new SupertabConnect instance (singleton).
      *
@@ -42,6 +45,7 @@ final class SupertabConnect
         private readonly bool $debug = false,
         ?string $baseUrl = null,
         ?HttpClientInterface $httpClient = null,
+        ?BotDetectorInterface $botDetector = null,
     ) {
         if ($this->apiKey === '') {
             throw new \InvalidArgumentException('Missing required configuration: apiKey is required');
@@ -61,6 +65,7 @@ final class SupertabConnect
             // so we copy internal dependencies from the existing instance instead.
             $this->verifier = self::$instance->verifier;
             $this->eventRecorder = self::$instance->eventRecorder;
+            $this->botDetector = self::$instance->botDetector;
 
             return;
         }
@@ -69,6 +74,7 @@ final class SupertabConnect
         $jwksProvider = new JwksProvider(self::$baseUrl, $client, $this->debug);
         $this->verifier = new LicenseTokenVerifier($jwksProvider, self::$baseUrl, $this->debug);
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
+        $this->botDetector = $botDetector;
 
         self::$instance = $this;
     }
@@ -244,6 +250,13 @@ final class SupertabConnect
                 ));
             }
 
+            return $this->send(new AllowResult);
+        }
+
+        // No token — run bot detection
+        $isBot = $this->botDetector?->isBot($context) ?? false;
+
+        if (! $isBot) {
             return $this->send(new AllowResult);
         }
 
