@@ -40,7 +40,8 @@
         "test": "phpunit",
         "lint": "pint",
         "lint:check": "pint --test",
-        "demo": "php demo/bot.php"
+        "demo": "php demo/bot.php",
+        "demo:local": "php demo/run-local.php"
     },
     "minimum-stability": "stable"
 }
