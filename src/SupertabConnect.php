@@ -7,6 +7,7 @@ namespace Supertab\Connect;
 use Supertab\Connect\Customer\LicenseTokenClient;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
+use Supertab\Connect\Event\EventRecorder;
 use Supertab\Connect\Exception\SupertabConnectException;
 use Supertab\Connect\Http\HttpClient;
 use Supertab\Connect\Http\HttpClientInterface;
@@ -26,6 +27,8 @@ final class SupertabConnect
     private static ?self $instance = null;
 
     private readonly LicenseTokenVerifier $verifier;
+
+    private readonly EventRecorder $eventRecorder;
 
     /**
      * Create a new SupertabConnect instance (singleton).
@@ -55,8 +58,9 @@ final class SupertabConnect
                 );
             }
             // Return existing instance — but PHP constructors can't return a different object,
-            // so we copy the verifier from the existing instance instead.
+            // so we copy internal dependencies from the existing instance instead.
             $this->verifier = self::$instance->verifier;
+            $this->eventRecorder = self::$instance->eventRecorder;
 
             return;
         }
@@ -64,6 +68,7 @@ final class SupertabConnect
         $client = $httpClient ?? new HttpClient;
         $jwksProvider = new JwksProvider(self::$baseUrl, $client, $this->debug);
         $this->verifier = new LicenseTokenVerifier($jwksProvider, self::$baseUrl, $this->debug);
+        $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
 
         self::$instance = $this;
     }
@@ -115,6 +120,35 @@ final class SupertabConnect
         }
 
         return new VerificationResult(valid: false, error: $result->error);
+    }
+
+    /**
+     * Verify a license token and record an analytics event.
+     * Uses the instance's apiKey for event recording.
+     */
+    public function verifyAndRecord(
+        string $token,
+        string $resourceUrl,
+        ?string $userAgent = null,
+    ): VerificationResult {
+        $verification = $this->verifier->verify($token, $resourceUrl);
+
+        $this->eventRecorder->record(
+            eventName: $verification->valid ? 'license_used' : $verification->reason->value,
+            properties: [
+                'page_url' => $resourceUrl,
+                'user_agent' => $userAgent ?? 'unknown',
+                'verification_status' => $verification->valid ? 'valid' : 'invalid',
+                'verification_reason' => $verification->valid ? 'success' : $verification->reason->value,
+            ],
+            licenseId: $verification->licenseId,
+        );
+
+        if ($verification->valid) {
+            return new VerificationResult(valid: true);
+        }
+
+        return new VerificationResult(valid: false, error: $verification->error);
     }
 
     /**
@@ -170,7 +204,7 @@ final class SupertabConnect
 
     /**
      * Handle an incoming request by extracting the license token, verifying it,
-     * and applying enforcement mode.
+     * recording analytics events, and applying enforcement mode with bot detection.
      *
      * When no RequestContext is provided, reads from $_SERVER superglobals.
      */
@@ -182,13 +216,25 @@ final class SupertabConnect
         $token = str_starts_with($auth, 'License ') ? substr($auth, 8) : null;
         $url = $context->url;
 
-        // Token present → always validate regardless of mode
+        // Token present → always validate, regardless of mode or bot detection
         if ($token !== null) {
             if ($this->enforcement === EnforcementMode::DISABLED) {
                 return $this->send(new AllowResult);
             }
 
             $verification = $this->verifier->verify($token, $url);
+
+            // Record event (fire-and-forget)
+            $this->eventRecorder->record(
+                eventName: $verification->valid ? 'license_used' : $verification->reason->value,
+                properties: [
+                    'page_url' => $url,
+                    'user_agent' => $context->userAgent ?? 'unknown',
+                    'verification_status' => $verification->valid ? 'valid' : 'invalid',
+                    'verification_reason' => $verification->valid ? 'success' : $verification->reason->value,
+                ],
+                licenseId: $verification->licenseId,
+            );
 
             if (! $verification->valid) {
                 return $this->send(ResponseBuilder::buildBlockResult(
@@ -201,7 +247,7 @@ final class SupertabConnect
             return $this->send(new AllowResult);
         }
 
-        // No token — enforcement mode decides
+        // Bot detected, no token — enforcement mode decides
         return $this->send(match ($this->enforcement) {
             EnforcementMode::STRICT => ResponseBuilder::buildBlockResult(
                 reason: LicenseTokenInvalidReason::MISSING_TOKEN,
