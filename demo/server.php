@@ -97,6 +97,10 @@ switch (true) {
     case $uri === '/article' && $method === 'GET':
         $result = $connect->handleRequest(RequestContext::fromGlobals());
 
+        foreach ($result->headers as $name => $value) {
+            header("{$name}: {$value}");
+        }
+
         if ($result instanceof AllowResult) {
             header('Content-Type: text/html; charset=UTF-8');
             echo <<<'HTML'
@@ -112,7 +116,7 @@ switch (true) {
 </html>
 HTML;
         } elseif ($result instanceof BlockResult) {
-            // Headers and status already set by SupertabConnect::send()
+            http_response_code($result->status);
             echo $result->body;
         }
         break;

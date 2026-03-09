@@ -17,7 +17,6 @@ use Supertab\Connect\Jwks\JwksProvider;
 use Supertab\Connect\License\LicenseTokenVerifier;
 use Supertab\Connect\License\ResponseBuilder;
 use Supertab\Connect\Result\AllowResult;
-use Supertab\Connect\Result\BlockResult;
 use Supertab\Connect\Result\HandlerResult;
 use Supertab\Connect\Result\VerificationResult;
 
@@ -225,7 +224,7 @@ final class SupertabConnect
         // Token present → always validate, regardless of mode or bot detection
         if ($token !== null) {
             if ($this->enforcement === EnforcementMode::DISABLED) {
-                return $this->send(new AllowResult);
+                return new AllowResult;
             }
 
             $verification = $this->verifier->verify($token, $url);
@@ -243,25 +242,25 @@ final class SupertabConnect
             );
 
             if (! $verification->valid) {
-                return $this->send(ResponseBuilder::buildBlockResult(
+                return ResponseBuilder::buildBlockResult(
                     reason: $verification->reason,
                     error: $verification->error,
                     requestUrl: $url,
-                ));
+                );
             }
 
-            return $this->send(new AllowResult);
+            return new AllowResult;
         }
 
         // No token — run bot detection
         $isBot = $this->botDetector?->isBot($context) ?? false;
 
         if (! $isBot) {
-            return $this->send(new AllowResult);
+            return new AllowResult;
         }
 
         // Bot detected, no token — enforcement mode decides
-        return $this->send(match ($this->enforcement) {
+        return match ($this->enforcement) {
             EnforcementMode::STRICT => ResponseBuilder::buildBlockResult(
                 reason: LicenseTokenInvalidReason::MISSING_TOKEN,
                 error: LicenseTokenInvalidReason::MISSING_TOKEN->toErrorDescription(),
@@ -269,19 +268,6 @@ final class SupertabConnect
             ),
             EnforcementMode::SOFT => ResponseBuilder::buildSignalResult($url),
             EnforcementMode::DISABLED => new AllowResult,
-        });
-    }
-
-    private function send(HandlerResult $result): HandlerResult
-    {
-        foreach ($result->headers as $name => $value) {
-            header("{$name}: {$value}");
-        }
-
-        if ($result instanceof BlockResult) {
-            http_response_code($result->status);
-        }
-
-        return $result;
+        };
     }
 }
