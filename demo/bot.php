@@ -111,7 +111,12 @@ function httpGet(string $url, array $headers = []): array
         $parts = explode(':', $header, 2);
         if (count($parts) === 2) {
             $name = strtolower(trim($parts[0]));
-            $responseHeaders[$name] = trim($parts[1]);
+            $value = trim($parts[1]);
+            if (isset($responseHeaders[$name])) {
+                $responseHeaders[$name] .= ', ' . $value;
+            } else {
+                $responseHeaders[$name] = $value;
+            }
         }
 
         return $len;
@@ -134,10 +139,17 @@ function httpGet(string $url, array $headers = []): array
     ];
 }
 
-function parseLinkHeader(string $header): ?string
+function parseLicenseLink(string $header): ?string
 {
-    if (preg_match('/<([^>]+)>/', $header, $matches)) {
-        return $matches[1];
+    if (preg_match_all('/<([^>]+)>\s*([^,]*)/', $header, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $params = $match[2] ?? '';
+            if (preg_match('/rel\s*=\s*"license"/', $params)) {
+                return $match[1];
+            }
+        }
+
+        return $matches[0][1] ?? null;
     }
 
     return null;
@@ -242,12 +254,26 @@ function showHeader(string $name, ?string $value): void
     echo '    ' . yellow($name) . dim(': ') . $value . "\n";
 }
 
+function showLinkHeaders(?string $combinedLink): void
+{
+    if ($combinedLink === null) {
+        return;
+    }
+    if (preg_match_all('/<([^>]+)>\s*[^,]*/', $combinedLink, $matches)) {
+        foreach ($matches[0] as $linkValue) {
+            echo '    ' . yellow('Link') . dim(': ') . trim($linkValue) . "\n";
+        }
+    } else {
+        echo '    ' . yellow('Link') . dim(': ') . $combinedLink . "\n";
+    }
+}
+
 function showRslHeaders(array $headers): void
 {
     showHeader('WWW-Authenticate', $headers['www-authenticate'] ?? null);
     showHeader('X-RSL-Status', $headers['x-rsl-status'] ?? null);
     showHeader('X-RSL-Reason', $headers['x-rsl-reason'] ?? null);
-    showHeader('Link', $headers['link'] ?? null);
+    showLinkHeaders($headers['link'] ?? null);
 }
 
 function showJwtClaims(string $token): void
@@ -338,7 +364,7 @@ waitForEnter();
 banner(3, $totalSteps, 'Bot discovers license.xml', '📄');
 
 $linkHeader = $response['headers']['link'] ?? '';
-$licenseUrl = parseLinkHeader($linkHeader) ?? originFromUrl($resourceUrl) . '/license.xml';
+$licenseUrl = parseLicenseLink($linkHeader) ?? originFromUrl($resourceUrl) . '/license.xml';
 
 botSays('Let me follow that Link header...');
 showRequest('GET', $licenseUrl);
