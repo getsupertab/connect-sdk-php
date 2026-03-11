@@ -8,6 +8,8 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use PHPUnit\Framework\TestCase;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
+use Supertab\Connect\Exception\HttpException;
+use Supertab\Connect\Exception\JwksKeyNotFoundException;
 use Supertab\Connect\Jwks\JwksProviderInterface;
 use Supertab\Connect\License\LicenseTokenVerifier;
 
@@ -280,7 +282,7 @@ final class LicenseTokenVerifierTest extends TestCase
                 $keys = $forceRefresh ? $newKeys : $oldKeys;
 
                 if (! isset($keys[$kid])) {
-                    throw new \Supertab\Connect\Exception\JwksKeyNotFoundException($kid);
+                    throw new JwksKeyNotFoundException($kid);
                 }
 
                 return $keys[$kid];
@@ -305,7 +307,7 @@ final class LicenseTokenVerifierTest extends TestCase
 
         $jwksProvider = $this->createMock(JwksProviderInterface::class);
         $jwksProvider->method('getKeyByKid')
-            ->willThrowException(new \Supertab\Connect\Exception\HttpException('Network error'));
+            ->willThrowException(new HttpException('Network error'));
 
         $verifier = new LicenseTokenVerifier($jwksProvider, self::BASE_URL);
         $result = $verifier->verify($token, self::RESOURCE_URL);
@@ -339,7 +341,7 @@ final class LicenseTokenVerifierTest extends TestCase
                 if ($kid === $this->kid) {
                     return new Key($this->publicKey, 'ES256');
                 }
-                throw new \Supertab\Connect\Exception\JwksKeyNotFoundException($kid);
+                throw new JwksKeyNotFoundException($kid);
             });
 
         $jwksProvider->method('getKeys')

@@ -50,9 +50,6 @@ final class ResponseBuilder
 
     /**
      * Construct license link URL based on the request URL.
-     * 
-     * @param string $requestUrl
-     * @return string
      */
     public static function generateLicenseLink(string $requestUrl): string
     {
