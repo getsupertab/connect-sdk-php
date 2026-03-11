@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<ruleset name="SupertabConnect">
+    <description>Supertab Connect SDK coding standard</description>
+
+    <file>src</file>
+    <file>tests</file>
+
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="PSR12">
+        <!-- Allow "new Foo" without parentheses -->
+        <exclude name="PSR12.Classes.ClassInstantiation.MissingParentheses"/>
+    </rule>
+
+    <!-- Allow single-line empty bodies like "public function foo() {}" and "class Foo {}" -->
+    <rule ref="Squiz.WhiteSpace.ScopeClosingBrace.ContentBefore">
+        <severity>0</severity>
+    </rule>
+    <rule ref="PSR2.Classes.ClassDeclaration.OpenBraceNewLine">
+        <severity>0</severity>
+    </rule>
+
+    <!-- Allow lines up to 140 characters (warn above 140) -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="140"/>
+            <property name="absoluteLineLimit" value="0"/>
+        </properties>
+    </rule>
+
+    <!-- Concatenation operator must have one space on each side -->
+    <rule ref="Squiz.Strings.ConcatenationSpacing">
+        <properties>
+            <property name="spacing" value="1"/>
+            <property name="ignoreNewlines" value="true"/>
+        </properties>
+    </rule>
+
+    <!-- Allow snake_case test method names (e.g., test_it_verifies_token) -->
+    <rule ref="PSR1.Methods.CamelCapsMethodName">
+        <exclude-pattern>tests/</exclude-pattern>
+    </rule>
+</ruleset>
