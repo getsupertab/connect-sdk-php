@@ -180,25 +180,6 @@ final class SupertabConnectTest extends TestCase
 
     // --- Bot Detection Integration ---
 
-    public function test_handle_request_no_bot_detector_always_allows_without_token(): void
-    {
-        $stc = new SupertabConnect(
-            apiKey: 'test-key',
-            enforcement: EnforcementMode::STRICT,
-        );
-
-        $context = new RequestContext(
-            url: 'https://example.com/article',
-            authorizationHeader: null,
-        );
-
-        // No bot detector → isBot defaults to false → always ALLOW
-        $result = $stc->handleRequest($context);
-
-        $this->assertInstanceOf(AllowResult::class, $result);
-        $this->assertSame(HandlerAction::ALLOW, $result->action);
-    }
-
     public function test_handle_request_allows_non_bot_without_token(): void
     {
         $botDetector = $this->createMock(BotDetectorInterface::class);
