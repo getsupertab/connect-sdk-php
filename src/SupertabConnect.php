@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Supertab\Connect;
 
 use Supertab\Connect\Bot\BotDetectorInterface;
+use Supertab\Connect\Bot\DefaultBotDetector;
 use Supertab\Connect\Customer\LicenseTokenClient;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
@@ -73,7 +74,7 @@ final class SupertabConnect
         $jwksProvider = new JwksProvider(self::$baseUrl, $client, $this->debug);
         $this->verifier = new LicenseTokenVerifier($jwksProvider, self::$baseUrl, $this->debug);
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
-        $this->botDetector = $botDetector;
+        $this->botDetector = $botDetector ?? new DefaultBotDetector;
 
         self::$instance = $this;
     }
