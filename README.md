@@ -267,7 +267,7 @@ if ($result instanceof BlockResult) {
 
 ## Debug Logging
 
-Pass `debug: true` to the constructor, `verify()`, or `obtainLicenseToken()` to log internal steps via `error_log()`:
+Pass `debug: true` to the constructor or static methods to log internal steps via `error_log()`:
 
 ```
 [SupertabConnect] Fetching license.xml from https://example.com/license.xml
