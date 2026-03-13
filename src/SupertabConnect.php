@@ -6,6 +6,7 @@ namespace Supertab\Connect;
 
 use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Bot\DefaultBotDetector;
+use Supertab\Connect\Cache\CacheInterface;
 use Supertab\Connect\Customer\LicenseTokenClient;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
@@ -46,6 +47,7 @@ final class SupertabConnect
         ?string $baseUrl = null,
         ?HttpClientInterface $httpClient = null,
         ?BotDetectorInterface $botDetector = null,
+        ?CacheInterface $cache = null,
     ) {
         if ($this->apiKey === '') {
             throw new \InvalidArgumentException('Missing required configuration: apiKey is required');
@@ -71,7 +73,7 @@ final class SupertabConnect
         }
 
         $client = $httpClient ?? new HttpClient;
-        $jwksProvider = new JwksProvider(self::$baseUrl, $client, $this->debug);
+        $jwksProvider = new JwksProvider(self::$baseUrl, $client, $this->debug, $cache);
         $this->verifier = new LicenseTokenVerifier($jwksProvider, self::$baseUrl, $this->debug);
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
         $this->botDetector = $botDetector ?? new DefaultBotDetector;
@@ -113,10 +115,11 @@ final class SupertabConnect
         ?string $baseUrl = null,
         bool $debug = false,
         ?HttpClientInterface $httpClient = null,
+        ?CacheInterface $cache = null,
     ): VerificationResult {
         $effectiveBaseUrl = $baseUrl ?? self::$baseUrl;
         $client = $httpClient ?? new HttpClient;
-        $jwksProvider = new JwksProvider($effectiveBaseUrl, $client, $debug);
+        $jwksProvider = new JwksProvider($effectiveBaseUrl, $client, $debug, $cache);
         $verifier = new LicenseTokenVerifier($jwksProvider, $effectiveBaseUrl, $debug);
 
         $result = $verifier->verify($token, $resourceUrl);
