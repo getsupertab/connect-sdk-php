@@ -218,7 +218,7 @@ The SDK handles the full RSL flow automatically:
 Sets the global default base URL for all API requests. Useful for sandbox/testing environments. This affects all subsequent calls (both instance and static methods).
 
 ```php
-SupertabConnect::setBaseUrl('https://api-connect-sandbox.supertab.co');
+SupertabConnect::setBaseUrl('https://api-connect.sbx.supertab.co');
 ```
 
 ### `SupertabConnect::getBaseUrl()` (static)
