@@ -1,6 +1,6 @@
 {
     "name": "getsupertab/connect-sdk-php",
-    "description": "Supertab Connect SDK for PHP — License token verification and enforcement",
+    "description": "Supertab Connect PHP SDK",
     "type": "library",
     "license": "MIT",
     "keywords": ["supertab", "connect", "license", "jwt", "rsl"],
