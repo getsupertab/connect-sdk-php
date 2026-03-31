@@ -66,7 +66,16 @@ final class ContentMatcher
 
                 $patternPath = $patternParsed['path'] ?? '/';
             } else {
-                // Path-only pattern: skip host comparison
+                // Path-only pattern: must start with `/` and have no scheme.
+                // Rejects malformed absolute URLs like "https:/content/*".
+                if (isset($patternParsed['scheme']) || ! str_starts_with($block->urlPattern, '/')) {
+                    if ($debug) {
+                        error_log("[SupertabConnect] Skipping block with malformed URL pattern: {$block->urlPattern}");
+                    }
+
+                    continue;
+                }
+
                 $patternPath = $block->urlPattern;
             }
 

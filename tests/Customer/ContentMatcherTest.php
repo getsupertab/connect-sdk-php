@@ -358,6 +358,21 @@ final class ContentMatcherTest extends TestCase
         $this->assertNull($result);
     }
 
+    public function test_skips_malformed_absolute_url_as_path_only(): void
+    {
+        $blocks = [
+            new ContentBlock(
+                urlPattern: 'https:/content/*',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+        ];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'http://example.com/content/article');
+
+        $this->assertNull($result);
+    }
+
     public function test_mid_path_wildcard_wins_over_bare_prefix(): void
     {
         $blocks = [
