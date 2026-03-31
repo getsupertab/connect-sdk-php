@@ -28,6 +28,17 @@ final class LicenseTokenClientTest extends TestCase
 </rsl>
 XML;
 
+    private const LICENSE_XML_PATH_ONLY = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl xmlns="https://rslstandard.org/rsl">
+  <content url="/*" server="http://127.0.0.1:8787">
+    <license type="application/vnd.readium.license.status.v1.0+json">
+      <link rel="self" href="http://127.0.0.1:8787/license" />
+    </license>
+  </content>
+</rsl>
+XML;
+
     public function test_obtains_token_successfully(): void
     {
         $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
@@ -239,6 +250,33 @@ XML;
 
         $client = new LicenseTokenClient($httpClient);
         $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
+    }
+
+    public function test_uses_path_only_url_pattern_as_resource_param(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::LICENSE_XML_PATH_ONLY]);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->with(
+                $this->anything(),
+                $this->callback(function (string $body) {
+                    parse_str($body, $params);
+
+                    // Path-only pattern should be sent as-is
+                    return ($params['resource'] ?? null) === '/*';
+                }),
+                $this->anything(),
+            )
+            ->willReturn(['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])]);
+
+        $client = new LicenseTokenClient($httpClient);
+        $token = $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
+
+        $this->assertSame($fakeToken, $token);
     }
 
     /**

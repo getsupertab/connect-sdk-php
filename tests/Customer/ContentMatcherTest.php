@@ -287,6 +287,92 @@ final class ContentMatcherTest extends TestCase
         $this->assertSame('http://example.com/*', $result->urlPattern);
     }
 
+    // --- findBestMatch: path-only patterns (no host) ---
+
+    public function test_path_only_pattern_matches_resource_url(): void
+    {
+        $blocks = [
+            new ContentBlock(
+                urlPattern: '/article/*',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+        ];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'http://example.com/article/some-slug');
+
+        $this->assertNotNull($result);
+        $this->assertSame('/article/*', $result->urlPattern);
+    }
+
+    public function test_path_only_exact_match(): void
+    {
+        $blocks = [
+            new ContentBlock(
+                urlPattern: '/article/',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+        ];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'http://example.com/article/');
+
+        $this->assertNotNull($result);
+        $this->assertSame('/article/', $result->urlPattern);
+    }
+
+    public function test_mixed_absolute_and_path_only_patterns(): void
+    {
+        $blocks = [
+            new ContentBlock(
+                urlPattern: 'http://example.com/*',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+            new ContentBlock(
+                urlPattern: '/article/*',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+        ];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'http://example.com/article/slug');
+
+        $this->assertNotNull($result);
+        // Path-only /article/* (specificity 9) beats absolute /* (specificity 1)
+        $this->assertSame('/article/*', $result->urlPattern);
+    }
+
+    public function test_path_only_pattern_no_match(): void
+    {
+        $blocks = [
+            new ContentBlock(
+                urlPattern: '/article/*',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+        ];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'http://example.com/other');
+
+        $this->assertNull($result);
+    }
+
+    public function test_skips_malformed_absolute_url_as_path_only(): void
+    {
+        $blocks = [
+            new ContentBlock(
+                urlPattern: 'https:/content/*',
+                server: 'http://token.example.com',
+                licenseXml: '<license />',
+            ),
+        ];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'http://example.com/content/article');
+
+        $this->assertNull($result);
+    }
+
     public function test_mid_path_wildcard_wins_over_bare_prefix(): void
     {
         $blocks = [

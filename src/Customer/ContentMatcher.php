@@ -44,7 +44,7 @@ final class ContentMatcher
 
         foreach ($contentBlocks as $block) {
             $patternParsed = parse_url($block->urlPattern);
-            if ($patternParsed === false || ! isset($patternParsed['host'])) {
+            if ($patternParsed === false) {
                 if ($debug) {
                     error_log("[SupertabConnect] Skipping block with invalid URL pattern: {$block->urlPattern}");
                 }
@@ -52,17 +52,32 @@ final class ContentMatcher
                 continue;
             }
 
-            $patternHost = self::extractHost($patternParsed);
+            if (isset($patternParsed['host'])) {
+                // Absolute URL pattern: host must match
+                $patternHost = self::extractHost($patternParsed);
 
-            if ($patternHost !== $host) {
-                if ($debug) {
-                    error_log("[SupertabConnect] Skipping block: host mismatch (pattern={$patternHost}, resource={$host})");
+                if ($patternHost !== $host) {
+                    if ($debug) {
+                        error_log("[SupertabConnect] Skipping block: host mismatch (pattern={$patternHost}, resource={$host})");
+                    }
+
+                    continue;
                 }
 
-                continue;
-            }
+                $patternPath = $patternParsed['path'] ?? '/';
+            } else {
+                // Path-only pattern: must start with `/` and have no scheme.
+                // Rejects malformed absolute URLs like "https:/content/*".
+                if (isset($patternParsed['scheme']) || ! str_starts_with($block->urlPattern, '/')) {
+                    if ($debug) {
+                        error_log("[SupertabConnect] Skipping block with malformed URL pattern: {$block->urlPattern}");
+                    }
 
-            $patternPath = $patternParsed['path'] ?? '/';
+                    continue;
+                }
+
+                $patternPath = $block->urlPattern;
+            }
 
             // Exact match takes highest priority
             if ($patternPath === $path) {
