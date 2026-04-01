@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\HandlerAction;
+use Supertab\Connect\Http\HttpClientInterface;
 use Supertab\Connect\Http\RequestContext;
 use Supertab\Connect\Result\AllowResult;
 use Supertab\Connect\Result\BlockResult;
@@ -238,6 +239,50 @@ final class SupertabConnectTest extends TestCase
         $this->assertSame('https://example.com/path', $ctx->url);
         $this->assertSame('License abc123', $ctx->authorizationHeader);
         $this->assertSame('TestBot/1.0', $ctx->userAgent);
+    }
+
+    // --- generateLicenseToken ---
+
+    public function test_generate_license_token_static_method(): void
+    {
+        $licenseXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl xmlns="https://rslstandard.org/rsl">
+  <content url="http://127.0.0.1:7676/*" server="http://127.0.0.1:8787">
+    <license type="application/vnd.readium.license.status.v1.0+json">
+      <link rel="self" href="http://127.0.0.1:8787/license" />
+    </license>
+  </content>
+</rsl>
+XML;
+
+        $ecKey = openssl_pkey_new([
+            'curve_name' => 'prime256v1',
+            'private_key_type' => OPENSSL_KEYTYPE_EC,
+        ]);
+        openssl_pkey_export($ecKey, $ecKeyPem);
+
+        // Create a fake JWT that the mock will return
+        $header = rtrim(strtr(base64_encode(json_encode(['alg' => 'ES256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $body = rtrim(strtr(base64_encode(json_encode(['exp' => time() + 3600])), '+/', '-_'), '=');
+        $sig = rtrim(strtr(base64_encode('fake'), '+/', '-_'), '=');
+        $fakeToken = "{$header}.{$body}.{$sig}";
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->willReturn(['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])]);
+
+        $token = SupertabConnect::generateLicenseToken(
+            clientId: 'test-client',
+            kid: 'key-1',
+            privateKeyPem: $ecKeyPem,
+            resourceUrl: 'http://127.0.0.1:7676/article/my-article',
+            licenseXml: $licenseXml,
+            httpClient: $httpClient,
+        );
+
+        $this->assertSame($fakeToken, $token);
     }
 
     public function test_request_context_constructor_with_new_headers(): void
