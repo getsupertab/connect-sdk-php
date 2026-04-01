@@ -343,7 +343,7 @@ XML;
                         && ($params['client_assertion_type'] ?? null) === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
                         && isset($params['client_assertion'])
                         && isset($params['license'])
-                        && ($params['resource'] ?? null) === self::RESOURCE_URL;
+                        && ($params['resource'] ?? null) === 'http://127.0.0.1:7676/*';
                 }),
                 $this->anything(),
             )
