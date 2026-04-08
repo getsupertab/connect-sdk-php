@@ -2,7 +2,7 @@
     "name": "getsupertab/connect-sdk-php",
     "description": "Supertab Connect PHP SDK",
     "type": "library",
-    "version": "v1.1.0",
+    "version": "v1.2.0",
     "license": "MIT",
     "keywords": ["supertab", "connect", "license", "jwt", "rsl"],
     "homepage": "https://github.com/getsupertab/connect-sdk-php",
