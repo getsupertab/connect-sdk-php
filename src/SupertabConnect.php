@@ -211,6 +211,34 @@ final class SupertabConnect
     }
 
     /**
+     * Generate a license token using private key JWT assertion.
+     *
+     * The caller provides the license XML content (typically fetched from the
+     * publisher's license.xml endpoint). The SDK parses it, matches the resource
+     * URL, and requests a token using a signed JWT client assertion.
+     *
+     * Does not require a SupertabConnect instance.
+     *
+     * @throws SupertabConnectException on any failure
+     */
+    public static function generateLicenseToken(
+        string $clientId,
+        string $kid,
+        string $privateKeyPem,
+        string $resourceUrl,
+        string $licenseXml,
+        bool $debug = false,
+        ?HttpClientInterface $httpClient = null,
+    ): string {
+        $client = new LicenseTokenClient(
+            httpClient: $httpClient ?? new HttpClient,
+            debug: $debug,
+        );
+
+        return $client->generateLicenseToken($clientId, $kid, $privateKeyPem, $resourceUrl, $licenseXml);
+    }
+
+    /**
      * Handle an incoming request by extracting the license token, verifying it,
      * recording analytics events, and applying enforcement mode with bot detection.
      *

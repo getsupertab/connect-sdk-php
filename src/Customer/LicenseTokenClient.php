@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Supertab\Connect\Customer;
 
+use Firebase\JWT\JWT;
 use Supertab\Connect\Exception\SupertabConnectException;
 use Supertab\Connect\Http\HttpClientInterface;
 
@@ -46,7 +47,111 @@ final class LicenseTokenClient
         }
 
         // 3. Parse and match
-        $contentBlocks = LicenseXmlParser::parseContentElements($xml, $this->debug);
+        $matchedContent = $this->resolveContentMatch($xml, $resourceUrl);
+
+        // 4. Request token
+        $tokenEndpoint = rtrim($matchedContent->server, '/') . '/token';
+
+        if ($this->debug) {
+            error_log("[SupertabConnect] Requesting license token from {$tokenEndpoint}");
+        }
+
+        $token = $this->requestToken(
+            $tokenEndpoint,
+            $clientId,
+            $clientSecret,
+            $matchedContent->licenseXml,
+            $matchedContent->urlPattern,
+        );
+
+        // 5. Cache token
+        $this->cacheToken($cacheKey, $token);
+
+        return $token;
+    }
+
+    /**
+     * Generate a license token using private key JWT assertion.
+     *
+     * The caller provides the license XML content (typically fetched from the
+     * publisher's license.xml endpoint). The SDK parses it, matches the resource
+     * URL, and requests a token using a signed JWT client assertion.
+     *
+     * @throws SupertabConnectException on any failure
+     */
+    public function generateLicenseToken(
+        string $clientId,
+        string $kid,
+        string $privateKeyPem,
+        string $resourceUrl,
+        string $licenseXml,
+    ): string {
+        // 1. Check cache
+        $cacheKey = "{$clientId}:{$resourceUrl}";
+        $cached = $this->cache->get($cacheKey, $this->debug);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        // 2. Parse and match
+        $matchedContent = $this->resolveContentMatch($licenseXml, $resourceUrl);
+
+        // 3. Build token endpoint
+        $tokenEndpoint = rtrim($matchedContent->server, '/') . '/token';
+
+        if ($this->debug) {
+            error_log("[SupertabConnect] Requesting license token from {$tokenEndpoint} using JWT assertion");
+        }
+
+        // 4. Detect key algorithm and create JWT assertion
+        $alg = self::detectKeyAlgorithm($privateKeyPem);
+
+        if ($this->debug) {
+            error_log("[SupertabConnect] Detected key algorithm: {$alg}");
+        }
+
+        $now = time();
+        $payload = [
+            'iss' => $clientId,
+            'sub' => $clientId,
+            'aud' => $tokenEndpoint,
+            'iat' => $now,
+            'exp' => $now + 300,
+        ];
+
+        $clientAssertion = JWT::encode($payload, $privateKeyPem, $alg, $kid);
+
+        // 5. POST to token endpoint
+        $body = http_build_query([
+            'grant_type' => 'rsl',
+            'client_assertion_type' => 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+            'client_assertion' => $clientAssertion,
+            'license' => $matchedContent->licenseXml,
+            'resource' => $matchedContent->urlPattern,
+        ]);
+
+        $headers = [
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'Accept' => 'application/json',
+        ];
+
+        $response = $this->postToTokenEndpoint($tokenEndpoint, $body, $headers);
+        $token = $this->parseTokenResponse($response);
+
+        // 6. Cache token
+        $this->cacheToken($cacheKey, $token);
+
+        return $token;
+    }
+
+    /**
+     * Parse license XML and find the best matching content block for a resource URL.
+     *
+     * @throws SupertabConnectException
+     */
+    private function resolveContentMatch(string $licenseXml, string $resourceUrl): ContentBlock
+    {
+        $contentBlocks = LicenseXmlParser::parseContentElements($licenseXml, $this->debug);
 
         if ($contentBlocks === []) {
             if ($this->debug) {
@@ -76,25 +181,48 @@ final class LicenseTokenClient
             error_log("[SupertabConnect] Using license XML: {$matchedContent->licenseXml}");
         }
 
-        // 4. Request token
-        $tokenEndpoint = rtrim($matchedContent->server, '/') . '/token';
+        return $matchedContent;
+    }
 
-        if ($this->debug) {
-            error_log("[SupertabConnect] Requesting license token from {$tokenEndpoint}");
+    /**
+     * Detect the JWT signing algorithm from a PEM-encoded private key.
+     *
+     * @throws SupertabConnectException if the key format is unsupported
+     */
+    private static function detectKeyAlgorithm(string $privateKeyPem): string
+    {
+        $key = openssl_pkey_get_private($privateKeyPem);
+        if ($key === false) {
+            throw new SupertabConnectException(
+                'Unsupported private key format. Expected RSA or P-256 EC private key.'
+            );
         }
 
-        $token = $this->requestToken(
-            $tokenEndpoint,
-            $clientId,
-            $clientSecret,
-            $matchedContent->licenseXml,
-            $matchedContent->urlPattern,
+        $details = openssl_pkey_get_details($key);
+        if ($details === false) {
+            throw new SupertabConnectException(
+                'Unsupported private key format. Expected RSA or P-256 EC private key.'
+            );
+        }
+
+        if ($details['type'] === OPENSSL_KEYTYPE_EC) {
+            $curveName = $details['ec']['curve_name'] ?? '';
+            if ($curveName !== 'prime256v1') {
+                throw new SupertabConnectException(
+                    "Unsupported EC curve: {$curveName}. Expected prime256v1 (P-256)."
+                );
+            }
+
+            return 'ES256';
+        }
+
+        if ($details['type'] === OPENSSL_KEYTYPE_RSA) {
+            return 'RS256';
+        }
+
+        throw new SupertabConnectException(
+            'Unsupported private key format. Expected RSA or P-256 EC private key.'
         );
-
-        // 5. Cache token
-        $this->cacheToken($cacheKey, $token);
-
-        return $token;
     }
 
     /**
@@ -167,8 +295,23 @@ final class LicenseTokenClient
             'Authorization' => 'Basic ' . base64_encode("{$clientId}:{$clientSecret}"),
         ];
 
+        $response = $this->postToTokenEndpoint($tokenEndpoint, $body, $headers);
+
+        return $this->parseTokenResponse($response);
+    }
+
+    /**
+     * POST to a token endpoint with error wrapping.
+     *
+     * @param  array<string, string>  $headers
+     * @return array{statusCode: int, body: string}
+     *
+     * @throws SupertabConnectException
+     */
+    private function postToTokenEndpoint(string $tokenEndpoint, string $body, array $headers): array
+    {
         try {
-            $response = $this->httpClient->post($tokenEndpoint, $body, $headers);
+            return $this->httpClient->post($tokenEndpoint, $body, $headers);
         } catch (\Throwable $e) {
             throw new SupertabConnectException(
                 'Failed to obtain license token: ' . $e->getMessage(),
@@ -176,7 +319,17 @@ final class LicenseTokenClient
                 $e,
             );
         }
+    }
 
+    /**
+     * Parse a token endpoint response and extract the access_token.
+     *
+     * @param  array{statusCode: int, body: string}  $response
+     *
+     * @throws SupertabConnectException
+     */
+    private function parseTokenResponse(array $response): string
+    {
         if ($response['statusCode'] < 200 || $response['statusCode'] >= 300) {
             $errorBody = $response['body'] !== '' ? " - {$response['body']}" : '';
 

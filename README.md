@@ -41,7 +41,7 @@ if ($result instanceof BlockResult) {
 // Token is valid — serve content
 ```
 
-**Bot — obtain a license token:**
+**Bot — obtain a license token (client credentials):**
 
 ```php
 use Supertab\Connect\SupertabConnect;
@@ -52,6 +52,32 @@ $token = SupertabConnect::obtainLicenseToken(
     resourceUrl: 'https://example.com/article/my-slug',
 );
 
+$ch = curl_init('https://example.com/article/my-slug');
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: License {$token}"],
+]);
+$response = curl_exec($ch);
+```
+
+**Bot — generate a license token (private key JWT assertion):**
+
+```php
+use Supertab\Connect\SupertabConnect;
+
+// 1. Fetch the publisher's license.xml
+$licenseXml = file_get_contents('https://example.com/license.xml');
+
+// 2. Generate a token using your private key
+$token = SupertabConnect::generateLicenseToken(
+    clientId: 'urn:stc:customer:system:your-system-id',
+    kid: 'your-key-id',
+    privateKeyPem: file_get_contents('/path/to/private-key.pem'),
+    resourceUrl: 'https://example.com/article/my-slug',
+    licenseXml: $licenseXml,
+);
+
+// 3. Access content with the token
 $ch = curl_init('https://example.com/article/my-slug');
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -212,6 +238,31 @@ The SDK handles the full RSL flow automatically:
 2. Parses content blocks and finds the best matching URL pattern (exact > path pattern > wildcard by specificity)
 3. POSTs to the token endpoint using OAuth2 `client_credentials`
 4. Caches the token in memory (keyed by `clientId:resourceUrl`, reused until 30s before expiry)
+
+### `SupertabConnect::generateLicenseToken()` (static)
+
+Generates a license token using a private key JWT assertion. The caller provides the license XML (typically fetched from the publisher's `license.xml` endpoint), and the SDK parses it, matches the resource URL, and authenticates using a signed JWT client assertion instead of a shared secret.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `clientId` | `string` | Yes | — | Your system's client ID (`urn:stc:customer:system:...`) |
+| `kid` | `string` | Yes | — | Key ID identifying your registered public key |
+| `privateKeyPem` | `string` | Yes | — | Private key in PEM format (RSA or P-256 EC) |
+| `resourceUrl` | `string` | Yes | — | Full URL of the protected resource |
+| `licenseXml` | `string` | Yes | — | The publisher's license XML content |
+| `debug` | `bool` | No | `false` | Emit debug logs |
+| `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client |
+
+**Returns:** `string` (the access token). Throws `SupertabConnectException` on failure.
+
+The SDK handles the token exchange automatically:
+
+1. Parses the license XML and finds the best matching content block for the resource URL
+2. Creates a short-lived JWT assertion (5 min) signed with your private key
+3. POSTs to the token endpoint with `grant_type=rsl` and the JWT assertion
+4. Caches the token in memory (keyed by `clientId:resourceUrl`, reused until 30s before expiry)
+
+Supports ES256 (P-256 EC) and RS256 (RSA) private keys. The algorithm is detected automatically from the key.
 
 ### `SupertabConnect::setBaseUrl()` (static)
 
