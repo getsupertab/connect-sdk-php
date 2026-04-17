@@ -17,7 +17,7 @@ final class HttpClient implements HttpClientInterface
         private readonly int $timeout = self::DEFAULT_TIMEOUT,
     ) {}
 
-    private static function resolveUserAgent(): string
+    public static function resolveUserAgent(): string
     {
         if (self::$userAgent !== null) {
             return self::$userAgent;
