@@ -4,17 +4,39 @@ declare(strict_types=1);
 
 namespace Supertab\Connect\Http;
 
+use Composer\InstalledVersions;
 use Supertab\Connect\Exception\HttpException;
 
 final class HttpClient implements HttpClientInterface
 {
     private const DEFAULT_TIMEOUT = 10;
 
-    private const USER_AGENT = 'SupertabConnect-PHP/1.0';
+    private static ?string $userAgent = null;
 
     public function __construct(
         private readonly int $timeout = self::DEFAULT_TIMEOUT,
     ) {}
+
+    private static function resolveUserAgent(): string
+    {
+        if (self::$userAgent !== null) {
+            return self::$userAgent;
+        }
+
+        $version = 'unknown';
+        if (class_exists(InstalledVersions::class)) {
+            try {
+                $resolved = InstalledVersions::getPrettyVersion('getsupertab/connect-sdk-php');
+                if ($resolved !== null && $resolved !== '') {
+                    $version = $resolved;
+                }
+            } catch (\OutOfBoundsException) {
+                // package not registered with Composer runtime — keep fallback
+            }
+        }
+
+        return self::$userAgent = "supertab-connect-sdk-php/{$version}";
+    }
 
     /**
      * @param  array<string, string>  $headers
@@ -55,7 +77,7 @@ final class HttpClient implements HttpClientInterface
             CURLOPT_CONNECTTIMEOUT => $this->timeout,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 3,
-            CURLOPT_USERAGENT => self::USER_AGENT,
+            CURLOPT_USERAGENT => self::resolveUserAgent(),
         ]);
 
         if ($headers !== []) {
