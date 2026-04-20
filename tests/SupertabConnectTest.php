@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\HandlerAction;
+use Supertab\Connect\Http\HttpClientInterface;
 use Supertab\Connect\Http\RequestContext;
 use Supertab\Connect\Result\AllowResult;
 use Supertab\Connect\Result\BlockResult;
@@ -252,5 +253,145 @@ final class SupertabConnectTest extends TestCase
         $this->assertSame('text/html', $ctx->accept);
         $this->assertSame('en-US', $ctx->acceptLanguage);
         $this->assertSame('"Chromium";v="120"', $ctx->secChUa);
+    }
+
+    public function test_request_context_headers_defaults_to_empty_array(): void
+    {
+        $ctx = new RequestContext(url: 'https://example.com/path');
+
+        $this->assertSame([], $ctx->headers);
+    }
+
+    public function test_request_context_headers_field_is_stored(): void
+    {
+        $ctx = new RequestContext(
+            url: 'https://example.com/path',
+            headers: [
+                'accept-language' => 'en-US',
+                'x-custom' => 'value',
+            ],
+        );
+
+        $this->assertSame([
+            'accept-language' => 'en-US',
+            'x-custom' => 'value',
+        ], $ctx->headers);
+    }
+
+    // --- Headers forwarding into event properties ---
+
+    public function test_handle_request_forwards_headers_into_event_properties(): void
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $capturedBody = null;
+        $httpClient->expects($this->atLeastOnce())
+            ->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$capturedBody) {
+                if (str_ends_with($url, '/events')) {
+                    $capturedBody = $body;
+                }
+
+                return ['statusCode' => 200, 'body' => ''];
+            });
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::SOFT,
+            httpClient: $httpClient,
+        );
+
+        $context = new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: 'License not-a-real-jwt',
+            userAgent: 'TestBot/1.0',
+            headers: [
+                'accept-language' => 'en-US',
+                'x-custom' => 'value',
+                'authorization' => 'License not-a-real-jwt',
+                'user-agent' => 'TestBot/1.0',
+                'x-forwarded-for' => '203.0.113.1',
+            ],
+        );
+
+        $stc->handleRequest($context);
+
+        $this->assertNotNull($capturedBody);
+        $payload = json_decode($capturedBody, true);
+        $properties = $payload['properties'];
+
+        $this->assertSame('en-US', $properties['h_accept-language']);
+        $this->assertSame('value', $properties['h_x-custom']);
+        $this->assertArrayNotHasKey('h_authorization', $properties);
+        $this->assertArrayNotHasKey('h_user-agent', $properties);
+        $this->assertArrayNotHasKey('h_x-forwarded-for', $properties);
+
+        // Standard properties still present
+        $this->assertSame('https://example.com/article', $properties['page_url']);
+        $this->assertSame('TestBot/1.0', $properties['user_agent']);
+    }
+
+    public function test_verify_and_record_accepts_request_headers_argument(): void
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $capturedBody = null;
+        $httpClient->expects($this->atLeastOnce())
+            ->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$capturedBody) {
+                if (str_ends_with($url, '/events')) {
+                    $capturedBody = $body;
+                }
+
+                return ['statusCode' => 200, 'body' => ''];
+            });
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            httpClient: $httpClient,
+        );
+
+        $stc->verifyAndRecord(
+            token: 'not-a-real-jwt',
+            resourceUrl: 'https://example.com/article',
+            userAgent: 'TestBot/1.0',
+            requestHeaders: [
+                'Accept-Language' => 'en-US',
+                'Authorization' => 'License xyz',
+                'X-Custom' => 'value',
+            ],
+        );
+
+        $this->assertNotNull($capturedBody);
+        $properties = json_decode($capturedBody, true)['properties'];
+
+        $this->assertSame('en-US', $properties['h_accept-language']);
+        $this->assertSame('value', $properties['h_x-custom']);
+        $this->assertArrayNotHasKey('h_authorization', $properties);
+    }
+
+    public function test_request_context_from_globals_collects_all_http_headers(): void
+    {
+        $original = $_SERVER;
+        try {
+            $_SERVER = [
+                'HTTPS' => 'on',
+                'HTTP_HOST' => 'example.com',
+                'REQUEST_URI' => '/article',
+                'HTTP_ACCEPT_LANGUAGE' => 'en-US,en;q=0.9',
+                'HTTP_X_FORWARDED_FOR' => '203.0.113.1',
+                'HTTP_AUTHORIZATION' => 'License abc123',
+                'HTTP_SEC_CH_UA' => '"Chromium";v="120"',
+                'HTTP_X_CUSTOM' => 'hello',
+            ];
+
+            $ctx = RequestContext::fromGlobals();
+
+            $this->assertSame('en-US,en;q=0.9', $ctx->headers['accept-language']);
+            $this->assertSame('203.0.113.1', $ctx->headers['x-forwarded-for']);
+            $this->assertSame('License abc123', $ctx->headers['authorization']);
+            $this->assertSame('"Chromium";v="120"', $ctx->headers['sec-ch-ua']);
+            $this->assertSame('hello', $ctx->headers['x-custom']);
+        } finally {
+            $_SERVER = $original;
+        }
     }
 }

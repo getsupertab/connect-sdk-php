@@ -11,6 +11,7 @@ use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
 use Supertab\Connect\Event\EventRecorder;
 use Supertab\Connect\Exception\SupertabConnectException;
+use Supertab\Connect\Http\Headers;
 use Supertab\Connect\Http\HttpClient;
 use Supertab\Connect\Http\HttpClientInterface;
 use Supertab\Connect\Http\RequestContext;
@@ -133,11 +134,16 @@ final class SupertabConnect
     /**
      * Verify a license token and record an analytics event.
      * Uses the instance's apiKey for event recording.
+     *
+     * @param  array<string, string>|null  $requestHeaders  Raw incoming request headers; merged
+     *                                                      into event properties under `h_` prefix
+     *                                                      (credentials and PII headers filtered out).
      */
     public function verifyAndRecord(
         string $token,
         string $resourceUrl,
         ?string $userAgent = null,
+        ?array $requestHeaders = null,
     ): VerificationResult {
         $verification = $this->verifier->verify($token, $resourceUrl);
 
@@ -149,6 +155,7 @@ final class SupertabConnect
                 'sdk_user_agent' => HttpClient::resolveUserAgent(),
                 'verification_status' => $verification->valid ? 'valid' : 'invalid',
                 'verification_reason' => $verification->valid ? 'success' : $verification->reason->value,
+                ...Headers::toEventProperties($requestHeaders ?? []),
             ],
             licenseId: $verification->licenseId,
         );
@@ -242,6 +249,7 @@ final class SupertabConnect
                     'sdk_user_agent' => HttpClient::resolveUserAgent(),
                     'verification_status' => $verification->valid ? 'valid' : 'invalid',
                     'verification_reason' => $verification->valid ? 'success' : $verification->reason->value,
+                    ...Headers::toEventProperties($context->headers),
                 ],
                 licenseId: $verification->licenseId,
             );

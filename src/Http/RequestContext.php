@@ -6,6 +6,9 @@ namespace Supertab\Connect\Http;
 
 final class RequestContext
 {
+    /**
+     * @param  array<string, string>  $headers  Keys must be lowercased header names
+     */
     public function __construct(
         public string $url,
         public ?string $authorizationHeader = null,
@@ -13,6 +16,7 @@ final class RequestContext
         public ?string $accept = null,
         public ?string $acceptLanguage = null,
         public ?string $secChUa = null,
+        public array $headers = [],
     ) {}
 
     /**
@@ -35,6 +39,15 @@ final class RequestContext
         $acceptLanguage = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null;
         $secChUa = $_SERVER['HTTP_SEC_CH_UA'] ?? null;
 
+        $headers = [];
+        foreach ($_SERVER as $key => $value) {
+            if (! is_string($key) || ! is_string($value) || ! str_starts_with($key, 'HTTP_')) {
+                continue;
+            }
+            $name = strtolower(str_replace('_', '-', substr($key, 5)));
+            $headers[$name] = $value;
+        }
+
         return new self(
             url: $url,
             authorizationHeader: $authorization,
@@ -42,6 +55,7 @@ final class RequestContext
             accept: $accept,
             acceptLanguage: $acceptLanguage,
             secChUa: $secChUa,
+            headers: $headers,
         );
     }
 }

@@ -111,10 +111,13 @@ $ctx = new RequestContext(
     accept: $request->header('Accept'),           // used by bot detection
     acceptLanguage: $request->header('Accept-Language'), // used by bot detection
     secChUa: $request->header('Sec-CH-UA'),        // used by bot detection
+    headers: $request->headers(),                  // forwarded into event properties (h_* prefix)
 );
 
 $result = $connect->handleRequest($ctx);
 ```
+
+All entries in `headers` are forwarded to the analytics event under an `h_<lowercased-name>` key. Credential and PII headers (`authorization`, `cookie`, `set-cookie`, `proxy-authorization`, `x-api-key`, `x-amz-security-token`, `user-agent`, `x-license-auth`, `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip`, `true-client-ip`) are filtered out. `RequestContext::fromGlobals()` populates `headers` automatically from `$_SERVER`.
 
 ### `SupertabConnect::verify()` (static)
 
@@ -152,6 +155,7 @@ Verifies a license token and records an analytics event. Requires an instance (u
 | `token` | `string` | Yes | — | Raw JWT token (without the `License ` prefix) |
 | `resourceUrl` | `string` | Yes | — | The URL being accessed |
 | `userAgent` | `?string` | No | `null` | User-Agent string for analytics |
+| `requestHeaders` | `?array<string, string>` | No | `null` | Incoming request headers to forward into event properties under an `h_` prefix (credential/PII headers filtered out) |
 
 **Returns:** `VerificationResult` with `valid: bool` and `error: ?string`.
 
@@ -162,6 +166,7 @@ $result = $connect->verifyAndRecord(
     token: $token,
     resourceUrl: 'https://example.com/article/my-slug',
     userAgent: $_SERVER['HTTP_USER_AGENT'] ?? null,
+    requestHeaders: getallheaders() ?: [],
 );
 
 if (! $result->valid) {
