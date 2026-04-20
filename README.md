@@ -104,6 +104,14 @@ When integrating with a framework, pass a `RequestContext` instead of relying on
 ```php
 use Supertab\Connect\Http\RequestContext;
 
+// `headers` must be a flat array<string, string>. Join multi-value headers
+// (e.g. `implode(', ', $values)`) before passing them in; non-string values
+// are silently dropped.
+$headers = [];
+foreach ($request->headers->all() as $name => $values) {
+    $headers[$name] = is_array($values) ? implode(', ', $values) : (string) $values;
+}
+
 $ctx = new RequestContext(
     url: $request->getUri(),
     authorizationHeader: $request->header('Authorization'),
@@ -111,13 +119,13 @@ $ctx = new RequestContext(
     accept: $request->header('Accept'),           // used by bot detection
     acceptLanguage: $request->header('Accept-Language'), // used by bot detection
     secChUa: $request->header('Sec-CH-UA'),        // used by bot detection
-    headers: $request->headers(),                  // forwarded into event properties (h_* prefix)
+    headers: $headers,                             // forwarded into event properties (h_* prefix)
 );
 
 $result = $connect->handleRequest($ctx);
 ```
 
-All entries in `headers` are forwarded to the analytics event under an `h_<lowercased-name>` key. Credential and PII headers (`authorization`, `cookie`, `set-cookie`, `proxy-authorization`, `x-api-key`, `x-amz-security-token`, `user-agent`, `x-license-auth`, `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip`, `true-client-ip`) are filtered out. `RequestContext::fromGlobals()` populates `headers` automatically from `$_SERVER`.
+All entries in `headers` are forwarded to the analytics event under an `h_<lowercased-name>` key. Credential and PII headers (`authorization`, `cookie`, `set-cookie`, `proxy-authorization`, `x-api-key`, `x-amz-security-token`, `user-agent`, `x-license-auth`, `forwarded`, `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip`, `true-client-ip`) are filtered out. `RequestContext::fromGlobals()` populates `headers` automatically from `$_SERVER`.
 
 ### `SupertabConnect::verify()` (static)
 
