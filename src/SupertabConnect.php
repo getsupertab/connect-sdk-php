@@ -146,6 +146,7 @@ final class SupertabConnect
             properties: [
                 'page_url' => $resourceUrl,
                 'user_agent' => $userAgent ?? 'unknown',
+                'sdk_user_agent' => HttpClient::resolveUserAgent(),
                 'verification_status' => $verification->valid ? 'valid' : 'invalid',
                 'verification_reason' => $verification->valid ? 'success' : $verification->reason->value,
             ],
@@ -238,6 +239,7 @@ final class SupertabConnect
                 properties: [
                     'page_url' => $url,
                     'user_agent' => $context->userAgent ?? 'unknown',
+                    'sdk_user_agent' => HttpClient::resolveUserAgent(),
                     'verification_status' => $verification->valid ? 'valid' : 'invalid',
                     'verification_reason' => $verification->valid ? 'success' : $verification->reason->value,
                 ],
