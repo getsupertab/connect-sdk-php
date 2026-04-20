@@ -381,6 +381,8 @@ final class SupertabConnectTest extends TestCase
                 'HTTP_AUTHORIZATION' => 'License abc123',
                 'HTTP_SEC_CH_UA' => '"Chromium";v="120"',
                 'HTTP_X_CUSTOM' => 'hello',
+                'CONTENT_TYPE' => 'application/json',
+                'CONTENT_LENGTH' => '42',
             ];
 
             $ctx = RequestContext::fromGlobals();
@@ -390,6 +392,8 @@ final class SupertabConnectTest extends TestCase
             $this->assertSame('License abc123', $ctx->headers['authorization']);
             $this->assertSame('"Chromium";v="120"', $ctx->headers['sec-ch-ua']);
             $this->assertSame('hello', $ctx->headers['x-custom']);
+            $this->assertSame('application/json', $ctx->headers['content-type']);
+            $this->assertSame('42', $ctx->headers['content-length']);
         } finally {
             $_SERVER = $original;
         }

@@ -41,11 +41,19 @@ final class RequestContext
 
         $headers = [];
         foreach ($_SERVER as $key => $value) {
-            if (! is_string($key) || ! is_string($value) || ! str_starts_with($key, 'HTTP_')) {
+            if (! is_string($key) || ! is_string($value)) {
                 continue;
             }
-            $name = strtolower(str_replace('_', '-', substr($key, 5)));
-            $headers[$name] = $value;
+            if (str_starts_with($key, 'HTTP_')) {
+                $name = strtolower(str_replace('_', '-', substr($key, 5)));
+                $headers[$name] = $value;
+                continue;
+            }
+            // Content-Type and Content-Length are exposed without the HTTP_ prefix in CGI/FPM
+            if ($key === 'CONTENT_TYPE' || $key === 'CONTENT_LENGTH') {
+                $name = strtolower(str_replace('_', '-', $key));
+                $headers[$name] = $value;
+            }
         }
 
         return new self(

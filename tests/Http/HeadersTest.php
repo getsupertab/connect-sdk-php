@@ -51,6 +51,7 @@ final class HeadersTest extends TestCase
     public function test_drops_client_ip_headers_to_avoid_pii_leakage(): void
     {
         $result = Headers::toEventProperties([
+            'Forwarded' => 'for=203.0.113.1;proto=https',
             'X-Forwarded-For' => '203.0.113.1',
             'X-Real-IP' => '203.0.113.1',
             'CF-Connecting-IP' => '203.0.113.1',

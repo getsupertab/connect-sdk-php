@@ -26,6 +26,7 @@ final class Headers
         // SDK-internal plumbing (not useful as analytics signal)
         'x-license-auth',
         // Client IP / PII
+        'forwarded',
         'x-forwarded-for',
         'x-real-ip',
         'cf-connecting-ip',
