@@ -33,6 +33,10 @@ final class Headers
     ];
 
     /**
+     * Non-string header keys or values are skipped
+     * (e.g. multi-value headers represented as `array<string, string[]>` by
+     * some frameworks should be pre-joined by the caller).
+     *
      * @param  array<string, string>  $headers
      * @return array<string, string>
      */
@@ -40,6 +44,9 @@ final class Headers
     {
         $result = [];
         foreach ($headers as $key => $value) {
+            if (! is_string($key) || ! is_string($value)) {
+                continue;
+            }
             $lowerKey = strtolower($key);
             if (in_array($lowerKey, self::DENIED_HEADERS, true)) {
                 continue;

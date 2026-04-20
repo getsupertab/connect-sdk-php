@@ -286,7 +286,7 @@ final class SupertabConnectTest extends TestCase
         $capturedBody = null;
         $httpClient->expects($this->atLeastOnce())
             ->method('post')
-            ->willReturnCallback(function (string $url, string $body) use (&$capturedBody) {
+            ->willReturnCallback(function (string $url, string $body, array $headers) use (&$capturedBody) {
                 if (str_ends_with($url, '/events')) {
                     $capturedBody = $body;
                 }
@@ -336,7 +336,7 @@ final class SupertabConnectTest extends TestCase
         $capturedBody = null;
         $httpClient->expects($this->atLeastOnce())
             ->method('post')
-            ->willReturnCallback(function (string $url, string $body) use (&$capturedBody) {
+            ->willReturnCallback(function (string $url, string $body, array $headers) use (&$capturedBody) {
                 if (str_ends_with($url, '/events')) {
                     $capturedBody = $body;
                 }

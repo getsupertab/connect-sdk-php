@@ -74,4 +74,19 @@ final class HeadersTest extends TestCase
 
         $this->assertSame('  value with spaces  ', $result['h_x-custom']);
     }
+
+    public function test_skips_non_string_keys_and_values(): void
+    {
+        $result = Headers::toEventProperties([
+            'Accept' => 'text/html',
+            'X-Multi' => ['v1', 'v2'],
+            0 => 'numeric-key',
+            'X-Valid' => 'ok',
+        ]);
+
+        $this->assertSame([
+            'h_accept' => 'text/html',
+            'h_x-valid' => 'ok',
+        ], $result);
+    }
 }

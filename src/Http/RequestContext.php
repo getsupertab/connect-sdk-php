@@ -7,7 +7,7 @@ namespace Supertab\Connect\Http;
 final class RequestContext
 {
     /**
-     * @param  array<string, string>  $headers  Keys must be lowercased header names
+     * @param  array<string, string>  $headers  Header keys are normalized when converted to event properties
      */
     public function __construct(
         public string $url,
