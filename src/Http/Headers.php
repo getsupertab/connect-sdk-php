@@ -7,9 +7,8 @@ namespace Supertab\Connect\Http;
 /**
  * Converts incoming request headers into event properties for analytics.
  *
- * Ports src/headers.ts from connect-sdk-typescript. Header names are
- * lowercased and prefixed with `h_`; sensitive or duplicate headers
- * (credentials, client IPs, user-agent) are filtered out.
+ * Header names are lowercased and prefixed with `h_`; sensitive or
+ * duplicate headers (credentials, client IPs, user-agent) are filtered out.
  */
 final class Headers
 {
