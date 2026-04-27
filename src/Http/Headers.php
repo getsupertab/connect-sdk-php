@@ -8,7 +8,11 @@ namespace Supertab\Connect\Http;
  * Converts incoming request headers into event properties for analytics.
  *
  * Header names are lowercased and prefixed with `h_`; sensitive or
- * duplicate headers (credentials, client IPs, user-agent) are filtered out.
+ * duplicate headers (credentials, RFC 7239 `Forwarded`, user-agent) are
+ * filtered out. Other client-IP headers (`X-Forwarded-For`, `X-Real-IP`,
+ * `CF-Connecting-IP`, `True-Client-IP`) flow through — events are only
+ * recorded for token-bearing (bot) requests, so these are bot-traffic
+ * analytics signals rather than human PII.
  */
 final class Headers
 {
@@ -24,12 +28,9 @@ final class Headers
         'user-agent',
         // SDK-internal plumbing (not useful as analytics signal)
         'x-license-auth',
-        // Client IP / PII
+        // RFC 7239 — can carry richer PII (`for=...;by=...;host=...`) than
+        // the simpler client-IP headers; keep filtered.
         'forwarded',
-        'x-forwarded-for',
-        'x-real-ip',
-        'cf-connecting-ip',
-        'true-client-ip',
     ];
 
     /**

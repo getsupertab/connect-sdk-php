@@ -321,9 +321,9 @@ final class SupertabConnectTest extends TestCase
 
         $this->assertSame('en-US', $properties['h_accept-language']);
         $this->assertSame('value', $properties['h_x-custom']);
+        $this->assertSame('203.0.113.1', $properties['h_x-forwarded-for']);
         $this->assertArrayNotHasKey('h_authorization', $properties);
         $this->assertArrayNotHasKey('h_user-agent', $properties);
-        $this->assertArrayNotHasKey('h_x-forwarded-for', $properties);
 
         // Standard properties still present
         $this->assertSame('https://example.com/article', $properties['page_url']);

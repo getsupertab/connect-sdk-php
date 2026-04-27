@@ -48,14 +48,27 @@ final class HeadersTest extends TestCase
         $this->assertSame(['h_accept' => 'application/json'], $result);
     }
 
-    public function test_drops_client_ip_headers_to_avoid_pii_leakage(): void
+    public function test_includes_client_ip_headers_for_bot_traffic_analytics(): void
+    {
+        $result = Headers::toEventProperties([
+            'X-Forwarded-For' => '203.0.113.1',
+            'X-Real-IP' => '203.0.113.2',
+            'CF-Connecting-IP' => '203.0.113.3',
+            'True-Client-IP' => '203.0.113.4',
+        ]);
+
+        $this->assertSame([
+            'h_x-forwarded-for' => '203.0.113.1',
+            'h_x-real-ip' => '203.0.113.2',
+            'h_cf-connecting-ip' => '203.0.113.3',
+            'h_true-client-ip' => '203.0.113.4',
+        ], $result);
+    }
+
+    public function test_drops_forwarded_header_to_avoid_pii_leakage(): void
     {
         $result = Headers::toEventProperties([
             'Forwarded' => 'for=203.0.113.1;proto=https',
-            'X-Forwarded-For' => '203.0.113.1',
-            'X-Real-IP' => '203.0.113.1',
-            'CF-Connecting-IP' => '203.0.113.1',
-            'True-Client-IP' => '203.0.113.1',
             'Accept' => 'text/html',
         ]);
 
