@@ -2,6 +2,12 @@
 
 Check our [documentation](https://supertab-connect.mintlify.app/introduction/about-supertab-connect) for more information on Supertab Connect.
 
+[![Packagist Version](https://img.shields.io/packagist/v/getsupertab/connect-sdk-php.svg)](https://packagist.org/packages/getsupertab/connect-sdk-php)
+[![License](https://img.shields.io/packagist/l/getsupertab/connect-sdk-php.svg)](https://github.com/getsupertab/connect-sdk-php/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/getsupertab/connect-sdk-php/ci.yml?branch=main)](https://github.com/getsupertab/connect-sdk-php/actions/workflows/ci.yml)
+[![PHP Version](https://img.shields.io/packagist/php-v/getsupertab/connect-sdk-php.svg)](https://packagist.org/packages/getsupertab/connect-sdk-php)
+[![Code Style](https://img.shields.io/badge/code%20style-PHPCS-4F5B93.svg)](https://github.com/PHPCSStandards/PHP_CodeSniffer)
+
 ## Installation
 
 ```bash
