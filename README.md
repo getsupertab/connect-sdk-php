@@ -1,6 +1,6 @@
 # Supertab Connect PHP SDK
 
-Check our [documentation](https://supertab-connect.mintlify.app/introduction/about-supertab-connect) for more information on Supertab Connect.
+Check our [documentation](https://connect-docs.supertab.co/introduction/overview) for more information on Supertab Connect.
 
 [![Packagist Version](https://img.shields.io/packagist/v/getsupertab/connect-sdk-php.svg)](https://packagist.org/packages/getsupertab/connect-sdk-php)
 [![License](https://img.shields.io/packagist/l/getsupertab/connect-sdk-php.svg)](https://github.com/getsupertab/connect-sdk-php/blob/main/LICENSE)
