@@ -80,6 +80,38 @@ Default is `SOFT`.
 
 ---
 
+## Analytics
+
+When enabled, the SDK emits **one analytics event per request** to the Supertab Connect relay at `{baseUrl}/ingest/events`, carrying bot-classification signals (user agent, client IP, request metadata, and the verification/enforcement decision). It is **off by default** — enable it with `analyticsEnabled: true`:
+
+```php
+$connect = new SupertabConnect(
+    apiKey: 'stc_live_your_api_key',
+    analyticsEnabled: true,
+);
+```
+
+- **No extra credentials.** Requests are authenticated with your merchant `apiKey` (`Authorization: Bearer <apiKey>`). The backend derives merchant identity from the key, so the SDK sends **no merchant identifier** in the payload.
+- **Fail-open.** Emission can never block, slow, or alter request handling: errors are swallowed (logged only in `debug` mode) and the relay POST uses a short (1s) timeout.
+- **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
+- **Origin-only.** The PHP SDK runs on your server, not inside a CDN. Signals it can read natively — `client_ip` (`REMOTE_ADDR`), `user_agent`, `path`, `method`, `referer`, `accept_language`, and `request_id` (`X-Request-Id` or a generated UUID) — are captured automatically by `RequestContext::fromGlobals()`. Edge-only signals (`request_country`, `request_asn`, `tls_fingerprint`) are never fabricated; inject them explicitly on `RequestContext` if your stack provides them. For CDN-integrated deployments, use the TypeScript SDK.
+
+Each event also includes `schema_version`, a fixed `source_cdn` of `origin`, the `has_token` / `token_outcome` / `final_action` / `enforcement_mode` decision, and any HTTP Message Signature headers (`signature_agent`, `signature_input`, `signature`). The `client_ip` is normalized to IPv6 (`::ffff:` for IPv4).
+
+> **Privacy:** unlike the billing event (recorded only for token-bearing requests), the analytics event is emitted for **every** request — including human traffic — so `client_ip` and `user_agent` are captured for all visitors when analytics is enabled. This is required for bot classification.
+
+Point analytics at another environment with `setBaseUrl()`.
+
+### Connection reuse
+
+Analytics emission **reuses a connection across requests automatically**, so the TCP/TLS handshake is amortized instead of paid on every request. It uses a **persistent socket** — the one mechanism that survives across requests on PHP-FPM, mod_php, and FastCGI as well as long-running runtimes (Swoole, RoadRunner, Laravel Octane) — and **automatically falls back to cURL** on any error or unsupported platform (legacy CGI, disabled functions, a TLS quirk). Analytics still emits everywhere; only the reuse optimization is skipped where it can't run. There is nothing to configure.
+
+No extra extension is required: it uses PHP's core stream functions plus the already-required `ext-openssl` for TLS. The benefit scales with per-worker traffic (a warm worker reuses the connection; a cold one re-handshakes) and the relay's keep-alive timeout.
+
+If you ever need to force plain cURL (no persistent socket), inject an `HttpAnalyticsTransport` via the `analyticsTransport` option. `demo/benchmark_analytics.php` measures reuse against a local server with a simulated handshake cost.
+
+---
+
 ## API Reference
 
 ### `new SupertabConnect()`
@@ -94,10 +126,11 @@ Creates a singleton instance. Returns the existing instance if one already exist
 | `baseUrl` | `?string` | No | `null` | Set the global default base URL (same as `setBaseUrl()`) |
 | `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client (defaults to built-in cURL client) |
 | `botDetector` | `?BotDetectorInterface` | No | `null` | Inject a custom bot detector (defaults to `DefaultBotDetector`) |
+| `analyticsEnabled` | `bool` | No | `false` | Emit one relay analytics event per request to `{baseUrl}/ingest/events` (see [Analytics](#analytics)) |
 
 ### `handleRequest(?RequestContext $context): HandlerResult`
 
-Handles an incoming request end-to-end: extracts the license token from the `Authorization` header, verifies it, runs bot detection, records analytics events, and applies the enforcement mode. When a token is present, it is verified (unless DISABLED mode). When no token is present, bot detection determines whether enforcement kicks in — non-bot requests are always allowed. Returns a result object — the caller is responsible for sending HTTP headers and status codes.
+Handles an incoming request end-to-end: extracts the license token from the `Authorization` header, verifies it, runs bot detection, records a billing event, emits one relay analytics event (when analytics is enabled), and applies the enforcement mode. When a token is present, it is verified (unless DISABLED mode). When no token is present, bot detection determines whether enforcement kicks in — non-bot requests are always allowed. Returns a result object — the caller is responsible for sending HTTP headers and status codes.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -126,6 +159,12 @@ $ctx = new RequestContext(
     acceptLanguage: $request->header('Accept-Language'), // used by bot detection
     secChUa: $request->header('Sec-CH-UA'),        // used by bot detection
     headers: $headers,                             // forwarded into event properties (h_* prefix)
+    method: $request->method(),                    // analytics
+    clientIp: $request->ip(),                      // analytics — your framework's trusted client IP
+    // Optionally inject edge signals if your stack provides them (never auto-derived):
+    // requestCountry: $request->header('CF-IPCountry'),
+    // requestAsn: 13335,
+    // tlsFingerprint: $request->header('CF-JA3'),
 );
 
 $result = $connect->handleRequest($ctx);
