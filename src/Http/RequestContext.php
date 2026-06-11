@@ -8,6 +8,12 @@ final class RequestContext
 {
     /**
      * @param  array<string, string>  $headers  Header keys are normalized when converted to event properties
+     * @param  string|null  $method  HTTP request method (analytics).
+     * @param  string|null  $clientIp  Connecting client IP (analytics). Defaults to REMOTE_ADDR via fromGlobals().
+     * @param  string|null  $requestId  Request identifier (analytics). A UUID is generated downstream if null.
+     * @param  string|null  $requestCountry  Injection-only classification signal; never auto-derived at the origin.
+     * @param  int|null  $requestAsn  Injection-only classification signal; never auto-derived at the origin.
+     * @param  string|null  $tlsFingerprint  Injection-only classification signal; never auto-derived at the origin.
      */
     public function __construct(
         public string $url,
@@ -17,6 +23,12 @@ final class RequestContext
         public ?string $acceptLanguage = null,
         public ?string $secChUa = null,
         public array $headers = [],
+        public ?string $method = null,
+        public ?string $clientIp = null,
+        public ?string $requestId = null,
+        public ?string $requestCountry = null,
+        public ?int $requestAsn = null,
+        public ?string $tlsFingerprint = null,
     ) {}
 
     /**
@@ -38,6 +50,11 @@ final class RequestContext
         $accept = $_SERVER['HTTP_ACCEPT'] ?? null;
         $acceptLanguage = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null;
         $secChUa = $_SERVER['HTTP_SEC_CH_UA'] ?? null;
+
+        // Analytics signals available natively at the origin.
+        $method = $_SERVER['REQUEST_METHOD'] ?? null;
+        $clientIp = $_SERVER['REMOTE_ADDR'] ?? null;
+        $requestId = $_SERVER['HTTP_X_REQUEST_ID'] ?? null;
 
         $headers = [];
         foreach ($_SERVER as $key => $value) {
@@ -64,6 +81,9 @@ final class RequestContext
             acceptLanguage: $acceptLanguage,
             secChUa: $secChUa,
             headers: $headers,
+            method: $method,
+            clientIp: $clientIp,
+            requestId: $requestId,
         );
     }
 }
