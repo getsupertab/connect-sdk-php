@@ -9,7 +9,7 @@ use Supertab\Connect\Analytics\AnalyticsTransportInterface;
 use Supertab\Connect\Analytics\Decision;
 use Supertab\Connect\Analytics\Enum\FinalAction;
 use Supertab\Connect\Analytics\Enum\TokenOutcome;
-use Supertab\Connect\Analytics\HttpAnalyticsTransport;
+use Supertab\Connect\Analytics\KeepAliveHttpAnalyticsTransport;
 use Supertab\Connect\Analytics\NoopAnalyticsTransport;
 use Supertab\Connect\Analytics\TokenOutcomeMapper;
 use Supertab\Connect\Bot\BotDetectorInterface;
@@ -104,8 +104,10 @@ final class SupertabConnect
     /**
      * Select the analytics transport. An explicitly injected transport (the
      * internal DI / escape-hatch seam) wins; otherwise a no-op when analytics is
-     * disabled, or a per-request HTTP transport with a short timeout when
-     * enabled, so emission stays fail-open and bounded.
+     * disabled, or the adaptive transport when enabled — a persistent socket that
+     * reuses connections across requests and automatically falls back to cURL on
+     * any failure or unsupported platform, so emission stays fail-open everywhere
+     * without any configuration.
      */
     private function buildAnalyticsTransport(
         ?AnalyticsTransportInterface $injected,
@@ -119,10 +121,10 @@ final class SupertabConnect
             return new NoopAnalyticsTransport;
         }
 
-        return new HttpAnalyticsTransport(
+        return KeepAliveHttpAnalyticsTransport::adaptive(
             $this->apiKey,
             self::$baseUrl,
-            new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
+            self::ANALYTICS_TIMEOUT_SECONDS,
             $this->debug,
         );
     }
