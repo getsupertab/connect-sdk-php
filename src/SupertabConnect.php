@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace Supertab\Connect;
 
+use Supertab\Connect\Analytics\AnalyticsEventFactory;
+use Supertab\Connect\Analytics\AnalyticsTransportInterface;
+use Supertab\Connect\Analytics\Decision;
+use Supertab\Connect\Analytics\Enum\FinalAction;
+use Supertab\Connect\Analytics\Enum\TokenOutcome;
+use Supertab\Connect\Analytics\HttpAnalyticsTransport;
+use Supertab\Connect\Analytics\NoopAnalyticsTransport;
+use Supertab\Connect\Analytics\TokenOutcomeMapper;
 use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Cache\CacheInterface;
 use Supertab\Connect\Customer\LicenseTokenClient;
@@ -24,6 +32,8 @@ use Supertab\Connect\Result\VerificationResult;
 
 final class SupertabConnect
 {
+    private const ANALYTICS_TIMEOUT_SECONDS = 1;
+
     private static string $baseUrl = 'https://api-connect.supertab.co';
 
     private static ?self $instance = null;
@@ -33,6 +43,10 @@ final class SupertabConnect
     private readonly EventRecorder $eventRecorder;
 
     private readonly ?BotDetectorInterface $botDetector;
+
+    private readonly AnalyticsEventFactory $analyticsEventFactory;
+
+    private readonly AnalyticsTransportInterface $analyticsTransport;
 
     /**
      * Create a new SupertabConnect instance (singleton).
@@ -48,6 +62,8 @@ final class SupertabConnect
         ?HttpClientInterface $httpClient = null,
         ?BotDetectorInterface $botDetector = null,
         ?CacheInterface $cache = null,
+        bool $analyticsEnabled = false,
+        ?AnalyticsTransportInterface $analyticsTransport = null,
     ) {
         if ($this->apiKey === '') {
             throw new \InvalidArgumentException('Missing required configuration: apiKey is required');
@@ -68,6 +84,8 @@ final class SupertabConnect
             $this->verifier = self::$instance->verifier;
             $this->eventRecorder = self::$instance->eventRecorder;
             $this->botDetector = self::$instance->botDetector;
+            $this->analyticsEventFactory = self::$instance->analyticsEventFactory;
+            $this->analyticsTransport = self::$instance->analyticsTransport;
 
             return;
         }
@@ -77,8 +95,36 @@ final class SupertabConnect
         $this->verifier = new LicenseTokenVerifier($jwksProvider, self::$baseUrl, $this->debug);
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
         $this->botDetector = $botDetector ?? null;
+        $this->analyticsEventFactory = new AnalyticsEventFactory;
+        $this->analyticsTransport = $this->buildAnalyticsTransport($analyticsTransport, $analyticsEnabled);
 
         self::$instance = $this;
+    }
+
+    /**
+     * Select the analytics transport. An explicitly injected transport (the
+     * internal DI / escape-hatch seam) wins; otherwise a no-op when analytics is
+     * disabled, or a per-request HTTP transport with a short timeout when
+     * enabled, so emission stays fail-open and bounded.
+     */
+    private function buildAnalyticsTransport(
+        ?AnalyticsTransportInterface $injected,
+        bool $analyticsEnabled,
+    ): AnalyticsTransportInterface {
+        if ($injected !== null) {
+            return $injected;
+        }
+
+        if (! $analyticsEnabled) {
+            return new NoopAnalyticsTransport;
+        }
+
+        return new HttpAnalyticsTransport(
+            $this->apiKey,
+            self::$baseUrl,
+            new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
+            $this->debug,
+        );
     }
 
     /**
@@ -220,7 +266,12 @@ final class SupertabConnect
 
     /**
      * Handle an incoming request by extracting the license token, verifying it,
-     * recording analytics events, and applying enforcement mode with bot detection.
+     * recording a billing event, emitting one relay analytics event, and
+     * applying enforcement mode with bot detection.
+     *
+     * Exactly one analytics event is emitted per request (across every branch),
+     * which is what bot classification needs. Emission is fail-open: it can never
+     * block, slow, or alter request handling. Analytics is off unless enabled.
      *
      * When no RequestContext is provided, reads from $_SERVER superglobals.
      */
@@ -230,17 +281,44 @@ final class SupertabConnect
 
         $auth = $context->authorizationHeader ?? '';
         $token = str_starts_with($auth, 'License ') ? substr($auth, 8) : null;
+        $hasToken = $token !== null;
         $url = $context->url;
+
+        // Build and emit one analytics event for this request. Fail-open: any
+        // failure here must never affect the returned HandlerResult.
+        $emit = function (TokenOutcome $tokenOutcome, FinalAction $finalAction) use ($context, $hasToken): void {
+            try {
+                $this->analyticsTransport->emit(
+                    $this->analyticsEventFactory->build(
+                        $context,
+                        new Decision(
+                            hasToken: $hasToken,
+                            tokenOutcome: $tokenOutcome,
+                            finalAction: $finalAction,
+                            enforcementMode: $this->enforcement,
+                        ),
+                    ),
+                );
+            } catch (\Throwable $e) {
+                if ($this->debug) {
+                    error_log('[SupertabConnect] Failed to build/emit analytics event: ' . $e->getMessage());
+                }
+            }
+        };
 
         // Token present → always validate, regardless of mode or bot detection
         if ($token !== null) {
             if ($this->enforcement === EnforcementMode::DISABLED) {
+                // DISABLED short-circuits to ALLOW without verifying the token,
+                // so we cannot claim "valid" — report "not_validated".
+                $emit(TokenOutcome::NOT_VALIDATED, FinalAction::ALLOW);
+
                 return new AllowResult;
             }
 
             $verification = $this->verifier->verify($token, $url);
 
-            // Record event (fire-and-forget)
+            // Record billing event (fire-and-forget)
             $this->eventRecorder->record(
                 eventName: $verification->valid ? 'license_used' : $verification->reason->value,
                 properties: [
@@ -254,13 +332,23 @@ final class SupertabConnect
                 licenseId: $verification->licenseId,
             );
 
+            $tokenOutcome = $verification->valid
+                ? TokenOutcome::VALID
+                : ($verification->reason !== null
+                    ? TokenOutcomeMapper::fromReason($verification->reason)
+                    : TokenOutcome::MALFORMED);
+
             if (! $verification->valid) {
+                $emit($tokenOutcome, FinalAction::BLOCK);
+
                 return ResponseBuilder::buildBlockResult(
                     reason: $verification->reason,
                     error: $verification->error,
                     requestUrl: $url,
                 );
             }
+
+            $emit($tokenOutcome, FinalAction::ALLOW);
 
             return new AllowResult;
         }
@@ -269,18 +357,29 @@ final class SupertabConnect
         $isBot = $this->botDetector?->isBot($context) ?? false;
 
         if (! $isBot) {
+            $emit(TokenOutcome::ABSENT, FinalAction::ALLOW);
+
             return new AllowResult;
         }
 
         // Bot detected, no token — enforcement mode decides
-        return match ($this->enforcement) {
-            EnforcementMode::STRICT => ResponseBuilder::buildBlockResult(
-                reason: LicenseTokenInvalidReason::MISSING_TOKEN,
-                error: LicenseTokenInvalidReason::MISSING_TOKEN->toErrorDescription(),
-                requestUrl: $url,
-            ),
-            EnforcementMode::SOFT => ResponseBuilder::buildSignalResult($url),
-            EnforcementMode::DISABLED => new AllowResult,
-        };
+        switch ($this->enforcement) {
+            case EnforcementMode::STRICT:
+                $emit(TokenOutcome::ABSENT, FinalAction::BLOCK);
+
+                return ResponseBuilder::buildBlockResult(
+                    reason: LicenseTokenInvalidReason::MISSING_TOKEN,
+                    error: LicenseTokenInvalidReason::MISSING_TOKEN->toErrorDescription(),
+                    requestUrl: $url,
+                );
+            case EnforcementMode::SOFT:
+                $emit(TokenOutcome::ABSENT, FinalAction::OBSERVE);
+
+                return ResponseBuilder::buildSignalResult($url);
+            default: // DISABLED
+                $emit(TokenOutcome::ABSENT, FinalAction::ALLOW);
+
+                return new AllowResult;
+        }
     }
 }
