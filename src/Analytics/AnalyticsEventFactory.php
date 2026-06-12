@@ -34,15 +34,20 @@ final class AnalyticsEventFactory
         $timestamp = ($now ?? new DateTimeImmutable('now', new DateTimeZone('UTC')))
             ->setTimezone(new DateTimeZone('UTC'));
 
+        // RequestContext::$headers may carry original casing when the context is
+        // constructed manually (frameworks, getallheaders()); keys are normalized
+        // at point of use, mirroring Headers::toEventProperties().
+        $headers = array_change_key_case($context->headers);
+
         return new AnalyticsEvent(
             timestamp: $timestamp->format('Y-m-d\TH:i:s.v\Z'),
-            requestId: $this->resolveRequestId($context),
+            requestId: $this->resolveRequestId($context, $headers),
             sourceCdn: $this->sourceCdn,
             userAgent: $context->userAgent ?? '',
             clientIp: ClientIpNormalizer::normalize($context->clientIp),
             path: $this->safePath($context->url),
             method: $context->method ?? '',
-            referer: $context->headers['referer'] ?? '',
+            referer: $headers['referer'] ?? '',
             acceptLanguage: $context->acceptLanguage ?? '',
             requestCountry: $context->requestCountry,
             requestAsn: $context->requestAsn,
@@ -51,19 +56,22 @@ final class AnalyticsEventFactory
             tokenOutcome: $decision->tokenOutcome,
             finalAction: $decision->finalAction,
             enforcementMode: $this->enforcementModeToWire($decision->enforcementMode),
-            signatureAgent: $context->headers['signature-agent'] ?? null,
-            signatureInput: $context->headers['signature-input'] ?? null,
-            signature: $context->headers['signature'] ?? null,
+            signatureAgent: $headers['signature-agent'] ?? null,
+            signatureInput: $headers['signature-input'] ?? null,
+            signature: $headers['signature'] ?? null,
         );
     }
 
-    private function resolveRequestId(RequestContext $context): string
+    /**
+     * @param  array<string, string>  $headers  Lowercase-keyed headers from build()
+     */
+    private function resolveRequestId(RequestContext $context, array $headers): string
     {
         if ($context->requestId !== null && $context->requestId !== '') {
             return $context->requestId;
         }
 
-        $headerId = $context->headers['x-request-id'] ?? null;
+        $headerId = $headers['x-request-id'] ?? null;
         if (is_string($headerId) && $headerId !== '') {
             return $headerId;
         }

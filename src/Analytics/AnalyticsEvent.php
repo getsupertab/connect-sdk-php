@@ -9,7 +9,7 @@ use Supertab\Connect\Analytics\Enum\TokenOutcome;
 
 /**
  * Immutable analytics event payload sent to the Supertab Connect relay.
-*/
+ */
 final class AnalyticsEvent
 {
     public const SCHEMA_VERSION = 1;

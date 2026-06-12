@@ -152,6 +152,31 @@ final class AnalyticsEventFactoryTest extends TestCase
         $this->assertSame('sig1=:abc:', $payload['signature']);
     }
 
+    public function test_header_lookups_are_case_insensitive(): void
+    {
+        // Manually constructed contexts (frameworks, getallheaders()) carry
+        // original header casing; the documented contract is that keys are
+        // normalized when converted, not by the caller.
+        $ctx = new RequestContext(
+            url: 'https://example.com/',
+            headers: [
+                'Referer' => 'https://google.com/',
+                'X-Request-Id' => 'header-id',
+                'Signature-Agent' => 'https://bot.example',
+                'Signature-Input' => 'sig1=(...)',
+                'Signature' => 'sig1=:abc:',
+            ],
+        );
+
+        $payload = (new AnalyticsEventFactory)->build($ctx, $this->decision())->toArray();
+
+        $this->assertSame('https://google.com/', $payload['referer']);
+        $this->assertSame('header-id', $payload['request_id']);
+        $this->assertSame('https://bot.example', $payload['signature_agent']);
+        $this->assertSame('sig1=(...)', $payload['signature_input']);
+        $this->assertSame('sig1=:abc:', $payload['signature']);
+    }
+
     public function test_signature_headers_null_when_absent(): void
     {
         $payload = (new AnalyticsEventFactory)->build(new RequestContext(url: 'https://example.com/'), $this->decision())->toArray();
