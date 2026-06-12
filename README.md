@@ -92,7 +92,7 @@ $connect = new SupertabConnect(
 ```
 
 - **No extra credentials.** Requests are authenticated with your merchant `apiKey` (`Authorization: Bearer <apiKey>`). The backend derives merchant identity from the key, so the SDK sends **no merchant identifier** in the payload.
-- **Fail-open.** Emission can never block, slow, or alter request handling: errors are swallowed (logged only in `debug` mode) and the relay POST uses a short (1s) timeout.
+- **Fail-open.** Emission never throws or alters request handling: errors are swallowed (logged only in `debug` mode). The send is synchronous but bounded — the relay POST uses a short (1s) timeout — so worst-case added latency is capped.
 - **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
 - **Origin-only.** The PHP SDK runs on your server, not inside a CDN. Signals it can read natively — `client_ip` (`REMOTE_ADDR`), `user_agent`, `path`, `method`, `referer`, `accept_language`, and `request_id` (`X-Request-Id` or a generated UUID) — are captured automatically by `RequestContext::fromGlobals()`. Edge-only signals (`request_country`, `request_asn`, `tls_fingerprint`) are never fabricated; inject them explicitly on `RequestContext` if your stack provides them. For CDN-integrated deployments, use the TypeScript SDK.
 

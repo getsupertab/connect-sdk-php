@@ -270,8 +270,9 @@ final class SupertabConnect
      * applying enforcement mode with bot detection.
      *
      * Exactly one analytics event is emitted per request (across every branch),
-     * which is what bot classification needs. Emission is fail-open: it can never
-     * block, slow, or alter request handling. Analytics is off unless enabled.
+     * which is what bot classification needs. Emission is fail-open — it never
+     * throws or alters request handling — and synchronous, with added latency
+     * bounded by a short timeout. Analytics is off unless enabled.
      *
      * When no RequestContext is provided, reads from $_SERVER superglobals.
      */
