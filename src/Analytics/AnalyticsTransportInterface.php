@@ -7,8 +7,10 @@ namespace Supertab\Connect\Analytics;
 /**
  * Sends analytics events to a destination.
  *
- * Implementations MUST be fail-open: emit() must never throw, block, or
- * otherwise alter request handling.
+ * Implementations MUST be fail-open: emit() never throws and never alters
+ * request handling. Sends are synchronous, so implementations MUST keep the
+ * added latency tightly bounded (short connect/read timeouts) — "fail-open"
+ * promises bounded best-effort delivery, not zero blocking.
  */
 interface AnalyticsTransportInterface
 {
