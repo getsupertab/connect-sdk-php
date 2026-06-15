@@ -47,7 +47,7 @@ final class HttpAnalyticsTransportTest extends TestCase
                     $data = json_decode($body, true);
 
                     return $data['schema_version'] === 1
-                        && $data['source_cdn'] === 'origin'
+                        && $data['source_cdn'] === null
                         && $data['user_agent'] === 'TestBot/1.0'
                         && $data['client_ip'] === '::ffff:203.0.113.1'
                         && $data['final_action'] === 'allow'
