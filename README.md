@@ -80,6 +80,22 @@ Default is `SOFT`.
 
 ---
 
+## Analytics
+
+When enabled, the SDK emits **one analytics event per request** to the Supertab Connect relay at `{baseUrl}/ingest/events`, carrying bot-classification signals (user agent, client IP, request metadata, and the verification/enforcement decision). It is **off by default** — enable it with `analyticsEnabled: true`:
+
+```php
+$connect = new SupertabConnect(
+    apiKey: 'stc_live_your_api_key',
+    analyticsEnabled: true,
+);
+```
+
+- **Fail-open.** Emission never throws or alters request handling; errors are swallowed and the relay POST uses a short timeout.
+- **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
+
+---
+
 ## API Reference
 
 ### `new SupertabConnect()`
@@ -94,10 +110,11 @@ Creates a singleton instance. Returns the existing instance if one already exist
 | `baseUrl` | `?string` | No | `null` | Set the global default base URL (same as `setBaseUrl()`) |
 | `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client (defaults to built-in cURL client) |
 | `botDetector` | `?BotDetectorInterface` | No | `null` | Inject a custom bot detector (defaults to `DefaultBotDetector`) |
+| `analyticsEnabled` | `bool` | No | `false` | Emit one relay analytics event per request to `{baseUrl}/ingest/events` (see [Analytics](#analytics)) |
 
 ### `handleRequest(?RequestContext $context): HandlerResult`
 
-Handles an incoming request end-to-end: extracts the license token from the `Authorization` header, verifies it, runs bot detection, records analytics events, and applies the enforcement mode. When a token is present, it is verified (unless DISABLED mode). When no token is present, bot detection determines whether enforcement kicks in — non-bot requests are always allowed. Returns a result object — the caller is responsible for sending HTTP headers and status codes.
+Handles an incoming request end-to-end: extracts the license token from the `Authorization` header, verifies it, runs bot detection, records a billing event, emits one relay analytics event (when analytics is enabled), and applies the enforcement mode. When a token is present, it is verified (unless DISABLED mode). When no token is present, bot detection determines whether enforcement kicks in — non-bot requests are always allowed. Returns a result object — the caller is responsible for sending HTTP headers and status codes.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -126,6 +143,12 @@ $ctx = new RequestContext(
     acceptLanguage: $request->header('Accept-Language'), // used by bot detection
     secChUa: $request->header('Sec-CH-UA'),        // used by bot detection
     headers: $headers,                             // forwarded into event properties (h_* prefix)
+    method: $request->method(),                    // analytics
+    clientIp: $request->ip(),                      // analytics — your framework's trusted client IP
+    // Optionally inject edge signals if your stack provides them (never auto-derived):
+    // requestCountry: $request->header('CF-IPCountry'),
+    // requestAsn: 13335,
+    // tlsFingerprint: $request->header('CF-JA3'),
 );
 
 $result = $connect->handleRequest($ctx);
