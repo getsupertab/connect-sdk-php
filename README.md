@@ -91,16 +91,8 @@ $connect = new SupertabConnect(
 );
 ```
 
-- **No extra credentials.** Requests are authenticated with your merchant `apiKey` (`Authorization: Bearer <apiKey>`). The backend derives merchant identity from the key, so the SDK sends **no merchant identifier** in the payload.
-- **Fail-open.** Emission never throws or alters request handling: errors are swallowed (logged only in `debug` mode). The send is synchronous but bounded — the relay POST uses a short (1s) timeout — so worst-case added latency is capped.
+- **Fail-open.** Emission never throws or alters request handling; errors are swallowed and the relay POST uses a short timeout.
 - **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
-- **Origin-only.** The PHP SDK runs on your server, not inside a CDN. Signals it can read natively — `client_ip` (`REMOTE_ADDR`), `user_agent`, `path`, `method`, `referer`, `accept_language`, and `request_id` (`X-Request-Id` or a generated UUID) — are captured automatically by `RequestContext::fromGlobals()`. Edge-only signals (`request_country`, `request_asn`, `tls_fingerprint`) are never fabricated; inject them explicitly on `RequestContext` if your stack provides them. For CDN-integrated deployments, use the TypeScript SDK.
-
-Each event also includes `schema_version`, the `has_token` / `token_outcome` / `final_action` / `enforcement_mode` decision, and any HTTP Message Signature headers (`signature_agent`, `signature_input`, `signature`). `source_cdn` is `null` (the PHP SDK runs at the origin, not behind a CDN); a CDN-fronted caller can set one. The `client_ip` is normalized to IPv6 (`::ffff:` for IPv4).
-
-> **Privacy:** unlike the billing event (recorded only for token-bearing requests), the analytics event is emitted for **every** request — including human traffic — so `client_ip` and `user_agent` are captured for all visitors when analytics is enabled. This is required for bot classification.
-
-Point analytics at another environment with `setBaseUrl()`.
 
 ---
 
