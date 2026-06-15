@@ -52,7 +52,7 @@ final class KeepAliveHttpAnalyticsTransportTest extends TestCase
 
         $data = json_decode($captured['body'], true);
         $this->assertSame(1, $data['schema_version']);
-        $this->assertSame('origin', $data['source_cdn']);
+        $this->assertNull($data['source_cdn']);
         $this->assertSame('::ffff:203.0.113.1', $data['client_ip']);
         $this->assertSame('Bearer test-api-key', $captured['headers']['Authorization']);
         $this->assertSame('application/json', $captured['headers']['Content-Type']);
