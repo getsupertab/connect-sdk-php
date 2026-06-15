@@ -100,7 +100,7 @@ Analytics emission **reuses a connection across requests automatically**, so the
 
 No extra extension is required: it uses PHP's core stream functions plus the already-required `ext-openssl` for TLS. The benefit scales with per-worker traffic (a warm worker reuses the connection; a cold one re-handshakes) and the relay's keep-alive timeout.
 
-If you ever need to force plain cURL (no persistent socket), inject an `HttpAnalyticsTransport` via the `analyticsTransport` option.
+If you ever need to force plain cURL (no persistent socket), inject an `HttpAnalyticsTransport` via the `analyticsTransport` option. `demo/benchmark_analytics.php` measures reuse against a local server with a simulated handshake cost.
 
 ---
 
