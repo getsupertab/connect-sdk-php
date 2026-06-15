@@ -67,8 +67,9 @@ final class SupertabConnectAnalyticsTest extends TestCase
 
     public function test_injected_transport_emits_to_ingest_endpoint(): void
     {
-        // The default adaptive transport talks raw sockets. The injection seam is
-        // the escape hatch for forcing plain cURL; verify it emits end-to-end.
+        // The injection seam (internal DI / escape hatch) lets a caller supply
+        // their own transport; verify an injected HttpAnalyticsTransport emits
+        // end-to-end.
         $httpClient = $this->createMock(HttpClientInterface::class);
         $httpClient->expects($this->once())
             ->method('post')
