@@ -53,13 +53,17 @@ final class AnalyticsEventFactoryTest extends TestCase
         $this->assertSame('en-US', $payload['accept_language']);
     }
 
-    public function test_includes_schema_version_and_default_source_cdn(): void
+    public function test_includes_schema_version_and_null_source_cdn_by_default(): void
     {
+        // No CDN in front of the origin SDK → source_cdn is emitted as null
+        // (the relay accepts a null source_cdn for SDK-originated events). The
+        // key is still present in the payload.
         $event = (new AnalyticsEventFactory)->build(new RequestContext(url: 'https://example.com/'), $this->decision());
         $payload = $event->toArray();
 
         $this->assertSame(1, $payload['schema_version']);
-        $this->assertSame('origin', $payload['source_cdn']);
+        $this->assertArrayHasKey('source_cdn', $payload);
+        $this->assertNull($payload['source_cdn']);
     }
 
     public function test_source_cdn_is_configurable(): void

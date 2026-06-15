@@ -20,13 +20,13 @@ use Supertab\Connect\Http\RequestContext;
 final class AnalyticsEventFactory
 {
     /**
-     * The PHP SDK runs on the origin server, not inside a CDN, so it reports a
-     * fixed source rather than a CDN brand. Overridable via the constructor.
+     * The PHP SDK runs on the origin server, not inside a CDN, so by default it
+     * reports no CDN: source_cdn is emitted as null (the relay accepts a null
+     * source_cdn for SDK-originated events). A CDN-fronted caller can still pass
+     * a provider name.
      */
-    public const DEFAULT_SOURCE_CDN = 'origin';
-
     public function __construct(
-        private readonly string $sourceCdn = self::DEFAULT_SOURCE_CDN,
+        private readonly ?string $sourceCdn = null,
     ) {}
 
     public function build(RequestContext $context, Decision $decision, ?DateTimeImmutable $now = null): AnalyticsEvent

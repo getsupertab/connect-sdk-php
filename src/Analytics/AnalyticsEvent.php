@@ -17,7 +17,7 @@ final class AnalyticsEvent
     public function __construct(
         public readonly string $timestamp,
         public readonly string $requestId,
-        public readonly string $sourceCdn,
+        public readonly ?string $sourceCdn,
         public readonly string $userAgent,
         public readonly string $clientIp,
         public readonly string $path,
