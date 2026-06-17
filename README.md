@@ -94,6 +94,14 @@ $connect = new SupertabConnect(
 - **Fail-open.** Emission never throws or alters request handling; errors are swallowed and the relay POST uses a short timeout.
 - **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
 
+### Connection reuse
+
+Analytics emission **reuses a connection across requests automatically**, so the TCP/TLS handshake is amortized instead of paid on every request. It uses a **persistent socket** — the one mechanism that survives across requests on PHP-FPM, mod_php, and FastCGI as well as long-running runtimes (Swoole, RoadRunner, Laravel Octane) — and **automatically falls back to cURL** on any error or unsupported platform (legacy CGI, disabled functions, a TLS quirk). Analytics still emits everywhere; only the reuse optimization is skipped where it can't run. There is nothing to configure.
+
+No extra extension is required: it uses PHP's core stream functions plus the already-required `ext-openssl` for TLS. The benefit scales with per-worker traffic (a warm worker reuses the connection; a cold one re-handshakes) and the relay's keep-alive timeout.
+
+If you ever need to force plain cURL (no persistent socket), inject an `HttpAnalyticsTransport` via the `analyticsTransport` option.
+
 ---
 
 ## API Reference

@@ -7,7 +7,7 @@ namespace Supertab\Connect\Tests;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use Supertab\Connect\Analytics\AnalyticsTransportInterface;
-use Supertab\Connect\Analytics\HttpAnalyticsTransport;
+use Supertab\Connect\Analytics\KeepAliveHttpAnalyticsTransport;
 use Supertab\Connect\Analytics\NoopAnalyticsTransport;
 use Supertab\Connect\SupertabConnect;
 
@@ -30,13 +30,13 @@ final class SupertabConnectTransportSelectionTest extends TestCase
         return (new ReflectionProperty(SupertabConnect::class, 'analyticsTransport'))->getValue($stc);
     }
 
-    public function test_enabled_uses_http_transport_by_default(): void
+    public function test_enabled_uses_adaptive_transport_by_default(): void
     {
-        // Analytics enabled → the per-request HTTP transport with a short
-        // timeout. (Cross-request connection reuse lands separately.)
+        // Connection reuse is on by default → the adaptive (persistent + cURL
+        // fallback) transport, which is a KeepAliveHttpAnalyticsTransport.
         $stc = new SupertabConnect(apiKey: 'test-key', analyticsEnabled: true);
 
-        $this->assertInstanceOf(HttpAnalyticsTransport::class, $this->transportOf($stc));
+        $this->assertInstanceOf(KeepAliveHttpAnalyticsTransport::class, $this->transportOf($stc));
     }
 
     public function test_disabled_uses_noop(): void
