@@ -27,7 +27,6 @@ use Supertab\Connect\Http\RequestContext;
 use Supertab\Connect\Jwks\JwksProvider;
 use Supertab\Connect\License\LicenseTokenVerifier;
 use Supertab\Connect\License\ResponseBuilder;
-use Supertab\Connect\Result\AllowResult;
 use Supertab\Connect\Result\HandlerResult;
 use Supertab\Connect\Result\VerificationResult;
 
@@ -359,7 +358,7 @@ final class SupertabConnect
                 // so we cannot claim "valid" — report "not_validated".
                 $emit(TokenOutcome::NOT_VALIDATED, FinalAction::ALLOW);
 
-                return new AllowResult;
+                return ResponseBuilder::buildAllowResult($url);
             }
 
             $verification = $this->verifier->verify($token, $url);
@@ -396,7 +395,7 @@ final class SupertabConnect
 
             $emit($tokenOutcome, FinalAction::ALLOW);
 
-            return new AllowResult;
+            return ResponseBuilder::buildAllowResult($url);
         }
 
         // No token — run bot detection
@@ -405,7 +404,7 @@ final class SupertabConnect
         if (! $isBot) {
             $emit(TokenOutcome::ABSENT, FinalAction::ALLOW);
 
-            return new AllowResult;
+            return ResponseBuilder::buildAllowResult($url);
         }
 
         // Bot detected, no token — enforcement mode decides
@@ -425,7 +424,7 @@ final class SupertabConnect
             default: // DISABLED
                 $emit(TokenOutcome::ABSENT, FinalAction::ALLOW);
 
-                return new AllowResult;
+                return ResponseBuilder::buildAllowResult($url);
         }
     }
 }

@@ -25,6 +25,20 @@ final class ResponseBuilderTest extends TestCase
         $this->assertStringContainsString('rel="license"', $result->headers['Link']);
     }
 
+    public function test_build_allow_result_advertises_license_link(): void
+    {
+        $result = ResponseBuilder::buildAllowResult('https://example.com/article');
+
+        $this->assertInstanceOf(AllowResult::class, $result);
+        $this->assertSame(HandlerAction::ALLOW, $result->action);
+        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+        $this->assertStringContainsString('rel="license"', $result->headers['Link']);
+        $this->assertStringContainsString('type="application/rsl+xml"', $result->headers['Link']);
+        // Discovery only — the request-state signal headers stay on the soft-signal path.
+        $this->assertArrayNotHasKey('X-RSL-Status', $result->headers);
+        $this->assertArrayNotHasKey('X-RSL-Reason', $result->headers);
+    }
+
     public function test_build_block_result_missing_token(): void
     {
         $result = ResponseBuilder::buildBlockResult(
