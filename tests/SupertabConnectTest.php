@@ -92,14 +92,14 @@ final class SupertabConnectTest extends TestCase
         $this->assertSame(HandlerAction::ALLOW, $result->action);
     }
 
-    public function test_handle_request_soft_mode_signals_when_bot_and_no_token(): void
+    public function test_handle_request_observe_mode_signals_when_bot_and_no_token(): void
     {
         $botDetector = $this->createMock(BotDetectorInterface::class);
         $botDetector->method('isBot')->willReturn(true);
 
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::SOFT,
+            enforcement: EnforcementMode::OBSERVE,
             botDetector: $botDetector,
         );
 
@@ -115,14 +115,14 @@ final class SupertabConnectTest extends TestCase
         $this->assertSame('missing', $result->headers['X-RSL-Reason']);
     }
 
-    public function test_handle_request_strict_mode_blocks_when_bot_and_no_token(): void
+    public function test_handle_request_enforce_mode_blocks_when_bot_and_no_token(): void
     {
         $botDetector = $this->createMock(BotDetectorInterface::class);
         $botDetector->method('isBot')->willReturn(true);
 
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::STRICT,
+            enforcement: EnforcementMode::ENFORCE,
             botDetector: $botDetector,
         );
 
@@ -163,7 +163,7 @@ final class SupertabConnectTest extends TestCase
 
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::SOFT,
+            enforcement: EnforcementMode::OBSERVE,
             botDetector: $botDetector,
         );
 
@@ -188,7 +188,7 @@ final class SupertabConnectTest extends TestCase
 
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::STRICT,
+            enforcement: EnforcementMode::ENFORCE,
             botDetector: $botDetector,
         );
 
@@ -197,7 +197,7 @@ final class SupertabConnectTest extends TestCase
             authorizationHeader: null,
         );
 
-        // Not a bot → always ALLOW, even in STRICT mode
+        // Not a bot → always ALLOW, even in ENFORCE mode
         $result = $stc->handleRequest($context);
 
         $this->assertInstanceOf(AllowResult::class, $result);
@@ -296,7 +296,7 @@ final class SupertabConnectTest extends TestCase
 
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::SOFT,
+            enforcement: EnforcementMode::OBSERVE,
             httpClient: $httpClient,
         );
 

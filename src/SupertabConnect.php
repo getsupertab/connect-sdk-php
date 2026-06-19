@@ -56,7 +56,7 @@ final class SupertabConnect
      */
     public function __construct(
         private readonly string $apiKey,
-        private readonly EnforcementMode $enforcement = EnforcementMode::SOFT,
+        private readonly EnforcementMode $enforcement = EnforcementMode::OBSERVE,
         private readonly bool $debug = false,
         ?string $baseUrl = null,
         ?HttpClientInterface $httpClient = null,
@@ -366,7 +366,7 @@ final class SupertabConnect
 
         // Bot detected, no token — enforcement mode decides
         switch ($this->enforcement) {
-            case EnforcementMode::STRICT:
+            case EnforcementMode::ENFORCE:
                 $emit(TokenOutcome::ABSENT, FinalAction::BLOCK);
 
                 return ResponseBuilder::buildBlockResult(
@@ -374,7 +374,7 @@ final class SupertabConnect
                     error: LicenseTokenInvalidReason::MISSING_TOKEN->toErrorDescription(),
                     requestUrl: $url,
                 );
-            case EnforcementMode::SOFT:
+            case EnforcementMode::OBSERVE:
                 $emit(TokenOutcome::ABSENT, FinalAction::OBSERVE);
 
                 return ResponseBuilder::buildSignalResult($url);

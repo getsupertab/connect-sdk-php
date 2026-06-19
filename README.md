@@ -28,7 +28,7 @@ use Supertab\Connect\Result\BlockResult;
 
 $connect = new SupertabConnect(
     apiKey: 'stc_live_your_api_key',
-    enforcement: EnforcementMode::STRICT,
+    enforcement: EnforcementMode::ENFORCE,
 );
 
 $result = $connect->handleRequest();
@@ -72,11 +72,11 @@ The `EnforcementMode` enum controls how `handleRequest()` responds to detected b
 
 | Mode | Behavior |
 |------|----------|
-| `STRICT` | Bots without a valid token are blocked (401/403 with `WWW-Authenticate` header). Invalid tokens from any source are rejected. |
-| `SOFT` | All requests allowed. Bots without a token receive `X-RSL-Status: token_required` and `Link` headers to signal that licensing is available. Invalid tokens are still rejected. |
+| `ENFORCE` | Bots without a valid token are blocked (401/403 with `WWW-Authenticate` header). Invalid tokens from any source are rejected. |
+| `OBSERVE` | All requests allowed. Bots without a token receive `X-RSL-Status: token_required` and `Link` headers to signal that licensing is available. Invalid tokens are still rejected. |
 | `DISABLED` | All requests allowed unconditionally — no bot detection, no token verification, even if a token is present. |
 
-Default is `SOFT`.
+Default is `OBSERVE`.
 
 ---
 
@@ -105,7 +105,7 @@ Creates a singleton instance. Returns the existing instance if one already exist
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `apiKey` | `string` | Yes | — | Your Supertab Connect API key (`stc_live_...` or `stc_sandbox_...`) |
-| `enforcement` | `EnforcementMode` | No | `SOFT` | How to handle missing or invalid tokens |
+| `enforcement` | `EnforcementMode` | No | `OBSERVE` | How to handle missing or invalid tokens |
 | `debug` | `bool` | No | `false` | Emit debug logs via `error_log()` |
 | `baseUrl` | `?string` | No | `null` | Set the global default base URL (same as `setBaseUrl()`) |
 | `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client (defaults to built-in cURL client) |

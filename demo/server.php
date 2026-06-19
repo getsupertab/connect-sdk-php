@@ -81,7 +81,7 @@ SupertabConnect::resetInstance();
 
 $connect = new SupertabConnect(
     apiKey: 'demo-local-key',
-    enforcement: EnforcementMode::STRICT,
+    enforcement: EnforcementMode::ENFORCE,
     baseUrl: $baseUrl,
     httpClient: $httpClient,
     botDetector: new DefaultBotDetector,

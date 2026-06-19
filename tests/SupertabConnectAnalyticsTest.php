@@ -96,7 +96,7 @@ final class SupertabConnectAnalyticsTest extends TestCase
         $captured = [];
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::STRICT,
+            enforcement: EnforcementMode::ENFORCE,
             analyticsTransport: $this->recordingTransport($captured),
         );
 
@@ -110,12 +110,12 @@ final class SupertabConnectAnalyticsTest extends TestCase
         $this->assertSame('allow', $payload['final_action']);
     }
 
-    public function test_emits_observe_for_soft_mode_bot(): void
+    public function test_emits_observe_for_observe_mode_bot(): void
     {
         $captured = [];
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::SOFT,
+            enforcement: EnforcementMode::OBSERVE,
             botDetector: $this->botDetector(true),
             analyticsTransport: $this->recordingTransport($captured),
         );
@@ -131,12 +131,12 @@ final class SupertabConnectAnalyticsTest extends TestCase
         $this->assertSame('observe', $payload['enforcement_mode']);
     }
 
-    public function test_emits_block_for_strict_mode_bot(): void
+    public function test_emits_block_for_enforce_mode_bot(): void
     {
         $captured = [];
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::STRICT,
+            enforcement: EnforcementMode::ENFORCE,
             botDetector: $this->botDetector(true),
             analyticsTransport: $this->recordingTransport($captured),
         );
@@ -181,7 +181,7 @@ final class SupertabConnectAnalyticsTest extends TestCase
         $captured = [];
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::SOFT,
+            enforcement: EnforcementMode::OBSERVE,
             httpClient: $httpClient,
             analyticsTransport: $this->recordingTransport($captured),
         );
@@ -208,7 +208,7 @@ final class SupertabConnectAnalyticsTest extends TestCase
 
         $stc = new SupertabConnect(
             apiKey: 'test-key',
-            enforcement: EnforcementMode::STRICT,
+            enforcement: EnforcementMode::ENFORCE,
             botDetector: $this->botDetector(true),
             analyticsTransport: $transport,
         );
