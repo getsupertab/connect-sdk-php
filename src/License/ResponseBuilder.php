@@ -11,15 +11,26 @@ use Supertab\Connect\Result\BlockResult;
 final class ResponseBuilder
 {
     /**
+     * Build an allowed result that advertises the governing RSL license via the
+     * Link header. Per the RSL Crawler Authorization Protocol, served responses
+     * must reference the license so clients can discover the terms — independent
+     * of enforcement mode or bot detection.
+     */
+    public static function buildAllowResult(string $requestUrl): AllowResult
+    {
+        return new AllowResult([
+            'Link' => self::licenseLinkHeader($requestUrl),
+        ]);
+    }
+
+    /**
      * Build a result that signals a missing token in EnforcementMode::SOFT.
      * Returns headers indicating a license is required without blocking the request.
      */
     public static function buildSignalResult(string $requestUrl): AllowResult
     {
-        $licenseLink = self::generateLicenseLink($requestUrl);
-
         return new AllowResult([
-            'Link' => "<{$licenseLink}>; rel=\"license\"; type=\"application/rsl+xml\"",
+            'Link' => self::licenseLinkHeader($requestUrl),
             'X-RSL-Status' => 'token_required',
             'X-RSL-Reason' => 'missing',
         ]);
@@ -35,7 +46,6 @@ final class ResponseBuilder
     ): BlockResult {
         ['rslError' => $rslError, 'status' => $status] = self::reasonToRslError($reason);
         $errorDescription = self::sanitizeHeaderValue($error);
-        $licenseLink = self::generateLicenseLink($requestUrl);
 
         return new BlockResult(
             status: $status,
@@ -43,9 +53,19 @@ final class ResponseBuilder
             headers: [
                 'Content-Type' => 'text/plain; charset=UTF-8',
                 'WWW-Authenticate' => "License error=\"{$rslError}\", error_description=\"{$errorDescription}\"",
-                'Link' => "<{$licenseLink}>; rel=\"license\"; type=\"application/rsl+xml\"",
+                'Link' => self::licenseLinkHeader($requestUrl),
             ],
         );
+    }
+
+    /**
+     * Build the RSL discovery Link header value (rel="license") for a request URL.
+     */
+    private static function licenseLinkHeader(string $requestUrl): string
+    {
+        $licenseLink = self::generateLicenseLink($requestUrl);
+
+        return "<{$licenseLink}>; rel=\"license\"; type=\"application/rsl+xml\"";
     }
 
     /**
