@@ -18,7 +18,6 @@ use Supertab\Connect\Http\RequestContext;
 use Supertab\Connect\Jwks\JwksProvider;
 use Supertab\Connect\License\LicenseTokenVerifier;
 use Supertab\Connect\License\ResponseBuilder;
-use Supertab\Connect\Result\AllowResult;
 use Supertab\Connect\Result\HandlerResult;
 use Supertab\Connect\Result\VerificationResult;
 
@@ -235,7 +234,7 @@ final class SupertabConnect
         // Token present → always validate, regardless of mode or bot detection
         if ($token !== null) {
             if ($this->enforcement === EnforcementMode::DISABLED) {
-                return new AllowResult;
+                return ResponseBuilder::buildAllowResult($url);
             }
 
             $verification = $this->verifier->verify($token, $url);
@@ -262,14 +261,14 @@ final class SupertabConnect
                 );
             }
 
-            return new AllowResult;
+            return ResponseBuilder::buildAllowResult($url);
         }
 
         // No token — run bot detection
         $isBot = $this->botDetector?->isBot($context) ?? false;
 
         if (! $isBot) {
-            return new AllowResult;
+            return ResponseBuilder::buildAllowResult($url);
         }
 
         // Bot detected, no token — enforcement mode decides
@@ -280,7 +279,7 @@ final class SupertabConnect
                 requestUrl: $url,
             ),
             EnforcementMode::SOFT => ResponseBuilder::buildSignalResult($url),
-            EnforcementMode::DISABLED => new AllowResult,
+            EnforcementMode::DISABLED => ResponseBuilder::buildAllowResult($url),
         };
     }
 }
