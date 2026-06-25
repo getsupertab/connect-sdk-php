@@ -21,7 +21,7 @@ final class AnalyticsEventFactoryTest extends TestCase
         bool $hasToken = false,
         TokenOutcome $tokenOutcome = TokenOutcome::ABSENT,
         FinalAction $finalAction = FinalAction::ALLOW,
-        EnforcementMode $enforcementMode = EnforcementMode::SOFT,
+        EnforcementMode $enforcementMode = EnforcementMode::OBSERVE,
     ): Decision {
         return new Decision(
             hasToken: $hasToken,
@@ -79,7 +79,7 @@ final class AnalyticsEventFactoryTest extends TestCase
             hasToken: true,
             tokenOutcome: TokenOutcome::VALID,
             finalAction: FinalAction::ALLOW,
-            enforcementMode: EnforcementMode::SOFT,
+            enforcementMode: EnforcementMode::OBSERVE,
         );
 
         $payload = (new AnalyticsEventFactory)->build(new RequestContext(url: 'https://example.com/'), $decision)->toArray();
@@ -108,8 +108,8 @@ final class AnalyticsEventFactoryTest extends TestCase
     {
         return [
             'disabled' => [EnforcementMode::DISABLED, 'disabled'],
-            'soft → observe' => [EnforcementMode::SOFT, 'observe'],
-            'strict → enforce' => [EnforcementMode::STRICT, 'enforce'],
+            'observe' => [EnforcementMode::OBSERVE, 'observe'],
+            'enforce' => [EnforcementMode::ENFORCE, 'enforce'],
         ];
     }
 

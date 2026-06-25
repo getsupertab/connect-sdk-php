@@ -7,6 +7,6 @@ namespace Supertab\Connect\Enum;
 enum EnforcementMode: string
 {
     case DISABLED = 'disabled';
-    case SOFT = 'soft';
-    case STRICT = 'strict';
+    case OBSERVE = 'observe';
+    case ENFORCE = 'enforce';
 }

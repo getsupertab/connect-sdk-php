@@ -90,8 +90,8 @@ final class AnalyticsEventFactory
     {
         return match ($mode) {
             EnforcementMode::DISABLED => 'disabled',
-            EnforcementMode::SOFT => 'observe',
-            EnforcementMode::STRICT => 'enforce',
+            EnforcementMode::OBSERVE => 'observe',
+            EnforcementMode::ENFORCE => 'enforce',
         };
     }
 

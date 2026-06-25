@@ -11,7 +11,7 @@ use Supertab\Connect\Result\BlockResult;
 final class ResponseBuilder
 {
     /**
-     * Build a result that signals a missing token in EnforcementMode::SOFT.
+     * Build a result that signals a missing token in EnforcementMode::OBSERVE.
      * Returns headers indicating a license is required without blocking the request.
      */
     public static function buildSignalResult(string $requestUrl): AllowResult

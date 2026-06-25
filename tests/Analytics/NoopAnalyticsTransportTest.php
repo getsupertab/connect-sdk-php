@@ -26,7 +26,7 @@ final class NoopAnalyticsTransportTest extends TestCase
                 hasToken: false,
                 tokenOutcome: TokenOutcome::ABSENT,
                 finalAction: FinalAction::ALLOW,
-                enforcementMode: EnforcementMode::SOFT,
+                enforcementMode: EnforcementMode::OBSERVE,
             ),
         );
 

@@ -31,7 +31,7 @@ final class HttpAnalyticsTransportTest extends TestCase
                 hasToken: false,
                 tokenOutcome: TokenOutcome::ABSENT,
                 finalAction: FinalAction::ALLOW,
-                enforcementMode: EnforcementMode::SOFT,
+                enforcementMode: EnforcementMode::OBSERVE,
             ),
         );
     }
