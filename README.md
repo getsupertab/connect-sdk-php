@@ -127,6 +127,7 @@ Handles an incoming request end-to-end: extracts the license token from the `Aut
 When integrating with a framework, pass a `RequestContext` instead of relying on `$_SERVER`:
 
 ```php
+use Supertab\Connect\Analytics\CdnRequestSignals;
 use Supertab\Connect\Http\RequestContext;
 
 // `headers` must be a flat array<string, string>. Join multi-value headers

@@ -240,13 +240,25 @@ final class AnalyticsEventFactory
         return false;
     }
 
+    /**
+     * Cap a free-form string to a byte budget. Byte-based (no ext-mbstring
+     * dependency) but UTF-8-safe: a cut that lands inside a multibyte sequence
+     * is walked back so the result is never invalid UTF-8 (which would break
+     * json_encode of the event). Relies only on ext-pcre, always available.
+     */
     private function truncate(?string $value, int $max = self::MAX_FIELD_LENGTH): ?string
     {
-        if ($value === null) {
-            return null;
+        if ($value === null || strlen($value) <= $max) {
+            return $value;
         }
 
-        return mb_strlen($value) > $max ? mb_substr($value, 0, $max) : $value;
+        $cut = substr($value, 0, $max);
+        // Drop trailing bytes until the slice is valid UTF-8 (at most 3 bytes).
+        while ($cut !== '' && preg_match('//u', $cut) !== 1) {
+            $cut = substr($cut, 0, -1);
+        }
+
+        return $cut;
     }
 
     private function enforcementModeToWire(EnforcementMode $mode): string

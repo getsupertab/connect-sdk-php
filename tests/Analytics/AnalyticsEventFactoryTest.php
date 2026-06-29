@@ -386,6 +386,20 @@ final class AnalyticsEventFactoryTest extends TestCase
         $this->assertSame(512, strlen($payload['sec_ch_ua']));
     }
 
+    public function test_truncation_is_byte_bounded_and_utf8_safe(): void
+    {
+        // 900 three-byte chars = 2700 bytes. The cap bounds bytes (no ext-mbstring
+        // dependency) but must never split a multibyte sequence — a partial
+        // sequence would be invalid UTF-8 and break json_encode of the event.
+        $ctx = new RequestContext(url: 'https://example.com/', accept: str_repeat('€', 900));
+
+        $payload = (new AnalyticsEventFactory)->build($ctx, $this->decision())->toArray();
+
+        $this->assertLessThanOrEqual(512, strlen($payload['accept']));
+        $this->assertSame(1, preg_match('//u', $payload['accept']), 'truncated value must stay valid UTF-8');
+        $this->assertNotFalse(json_encode($payload));
+    }
+
     public function test_header_names_lowercased_deduped_and_sorted(): void
     {
         $ctx = new RequestContext(
