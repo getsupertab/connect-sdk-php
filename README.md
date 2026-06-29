@@ -94,6 +94,8 @@ $connect = new SupertabConnect(
 - **Fail-open.** Emission never throws or alters request handling; errors are swallowed and the relay POST uses a short timeout.
 - **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
 
+Events are emitted with `schema_version: 2` (Capture v2), adding spoof-detection signals read from the request: `Sec-Fetch-*` and client hints (`Sec-CH-UA*`), `accept`, `host`, cookie presence, and the stripped/sorted `header_names` set, plus query-shape signals (`query_length`, `query_param_count`, `query_suspicious`). The raw query string is never stored. CDN-only transport signals (TLS version/cipher, JA4, verified-bot category, AS organization, …) are emitted as `null` at a PHP origin unless injected explicitly via `RequestContext`'s `cdnSignals` (see below).
+
 ---
 
 ## API Reference
@@ -125,6 +127,7 @@ Handles an incoming request end-to-end: extracts the license token from the `Aut
 When integrating with a framework, pass a `RequestContext` instead of relying on `$_SERVER`:
 
 ```php
+use Supertab\Connect\Analytics\CdnRequestSignals;
 use Supertab\Connect\Http\RequestContext;
 
 // `headers` must be a flat array<string, string>. Join multi-value headers
@@ -149,6 +152,10 @@ $ctx = new RequestContext(
     // requestCountry: $request->header('CF-IPCountry'),
     // requestAsn: 13335,
     // tlsFingerprint: $request->header('CF-JA3'),
+    // cdnSignals: new CdnRequestSignals(  // Capture-v2 CDN plumbing, if a CDN fronts the origin
+    //     tlsVersion: $request->header('CF-Visitor-TLS'),
+    //     cdnVerifiedBotCategory: $request->header('CF-Verified-Bot-Category'),
+    // ),
 );
 
 $result = $connect->handleRequest($ctx);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Supertab\Connect\Http;
 
+use Supertab\Connect\Analytics\CdnRequestSignals;
+
 final class RequestContext
 {
     /**
@@ -14,6 +16,8 @@ final class RequestContext
      * @param  string|null  $requestCountry  Injection-only classification signal; never auto-derived at the origin.
      * @param  int|null  $requestAsn  Injection-only classification signal; never auto-derived at the origin.
      * @param  string|null  $tlsFingerprint  Injection-only classification signal; never auto-derived at the origin.
+     * @param  CdnRequestSignals|null  $cdnSignals  Injection-only Capture-v2 CDN plumbing (TLS/transport signals,
+     *                                              verified-bot category, …); not derivable at a PHP origin.
      */
     public function __construct(
         public string $url,
@@ -29,6 +33,7 @@ final class RequestContext
         public ?string $requestCountry = null,
         public ?int $requestAsn = null,
         public ?string $tlsFingerprint = null,
+        public ?CdnRequestSignals $cdnSignals = null,
     ) {}
 
     /**

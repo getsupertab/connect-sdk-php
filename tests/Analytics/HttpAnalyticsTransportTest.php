@@ -46,7 +46,7 @@ final class HttpAnalyticsTransportTest extends TestCase
                 $this->callback(function (string $body): bool {
                     $data = json_decode($body, true);
 
-                    return $data['schema_version'] === 1
+                    return $data['schema_version'] === 2
                         && $data['source_cdn'] === null
                         && $data['user_agent'] === 'TestBot/1.0'
                         && $data['client_ip'] === '::ffff:203.0.113.1'
