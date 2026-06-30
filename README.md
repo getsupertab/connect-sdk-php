@@ -96,6 +96,34 @@ $connect = new SupertabConnect(
 
 Events are emitted with `schema_version: 2` (Capture v2), adding spoof-detection signals read from the request: `Sec-Fetch-*` and client hints (`Sec-CH-UA*`), `accept`, `host`, cookie presence, and the stripped/sorted `header_names` set, plus query-shape signals (`query_length`, `query_param_count`, `query_suspicious`). The raw query string is never stored. CDN-only transport signals (TLS version/cipher, JA4, verified-bot category, AS organization, …) are emitted as `null` at a PHP origin unless injected explicitly via `RequestContext`'s `cdnSignals` (see below).
 
+### Delivery
+
+By default the relay POST is wrapped in `DeferredAnalyticsTransport`: on FastCGI-style SAPIs (PHP-FPM, LiteSpeed, FrankenPHP) it runs **after the response has been flushed to the visitor** via `fastcgi_finish_request()`, so analytics never adds to user-perceived latency. Where that function is unavailable (Apache `mod_php`, the built-in CLI server), it falls back to a bounded **synchronous** POST. Either way the PHP worker stays occupied until the POST finishes — this hides latency from the visitor, it does not reduce server-side work.
+
+To route delivery yourself — e.g. onto a job queue so it leaves the request worker entirely — inject an `AnalyticsTransportInterface` via `analyticsTransport`. An injected transport is used exactly as given (the SDK does not wrap it). `CallbackAnalyticsTransport` adapts a closure, and `AnalyticsEvent::toArray()` / `fromArray()` serialize and rehydrate an event across a queue boundary. A WordPress plugin using [Action Scheduler](https://actionscheduler.org/):
+
+```php
+use Supertab\Connect\Analytics\AnalyticsEvent;
+use Supertab\Connect\Analytics\CallbackAnalyticsTransport;
+use Supertab\Connect\Analytics\HttpAnalyticsTransport;
+use Supertab\Connect\Http\HttpClient;
+
+$connect = new SupertabConnect(
+    apiKey: $apiKey,
+    analyticsEnabled: true,
+    // emit() just enqueues — returns immediately, off the visitor request
+    analyticsTransport: new CallbackAnalyticsTransport(
+        fn (AnalyticsEvent $e) => as_enqueue_async_action('supertab_connect_emit_analytics', [$e->toArray()]),
+    ),
+);
+
+// The scheduled job runs in a cron/loopback worker; the POST is plain synchronous there.
+add_action('supertab_connect_emit_analytics', function (array $payload) use ($apiKey) {
+    (new HttpAnalyticsTransport($apiKey, SupertabConnect::getBaseUrl(), new HttpClient))
+        ->emit(AnalyticsEvent::fromArray($payload));
+});
+```
+
 ---
 
 ## API Reference
@@ -113,6 +141,7 @@ Creates a singleton instance. Returns the existing instance if one already exist
 | `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client (defaults to built-in cURL client) |
 | `botDetector` | `?BotDetectorInterface` | No | `null` | Inject a custom bot detector (defaults to `DefaultBotDetector`) |
 | `analyticsEnabled` | `bool` | No | `false` | Emit one relay analytics event per request to `{baseUrl}/ingest/events` (see [Analytics](#analytics)) |
+| `analyticsTransport` | `?AnalyticsTransportInterface` | No | `null` | Route analytics through a custom delivery path (e.g. a job queue). Used as-is when provided — bypasses the default deferred HTTP transport (see [Delivery](#delivery)) |
 
 ### `handleRequest(?RequestContext $context): HandlerResult`
 

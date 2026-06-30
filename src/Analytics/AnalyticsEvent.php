@@ -69,6 +69,70 @@ final class AnalyticsEvent
     ) {}
 
     /**
+     * Rebuild an event from a {@see toArray()} payload — the inverse used by
+     * deferred/queued delivery (e.g. an Action Scheduler job rehydrating the
+     * stored args before POSTing). Tolerant of missing keys (safe defaults) and
+     * unknown enum values (fall back rather than throw), so a payload produced
+     * by a newer or older SDK never breaks rehydration. `schema_version` is
+     * derived from the constant, not read back.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function fromArray(array $data): self
+    {
+        $str = static fn (string $key): string => isset($data[$key]) ? (string) $data[$key] : '';
+        $nullableStr = static fn (string $key): ?string => isset($data[$key]) ? (string) $data[$key] : null;
+        $nullableInt = static fn (string $key): ?int => isset($data[$key]) ? (int) $data[$key] : null;
+
+        return new self(
+            timestamp: $str('timestamp'),
+            requestId: $str('request_id'),
+            sourceCdn: $nullableStr('source_cdn'),
+            userAgent: $str('user_agent'),
+            clientIp: $str('client_ip'),
+            path: $str('path'),
+            method: $str('method'),
+            referer: $str('referer'),
+            acceptLanguage: $str('accept_language'),
+            requestCountry: $nullableStr('request_country'),
+            requestAsn: $nullableInt('request_asn'),
+            tlsFingerprint: $nullableStr('tls_fingerprint'),
+            hasToken: (bool) ($data['has_token'] ?? false),
+            tokenOutcome: TokenOutcome::tryFrom((string) ($data['token_outcome'] ?? '')) ?? TokenOutcome::ABSENT,
+            finalAction: FinalAction::tryFrom((string) ($data['final_action'] ?? '')) ?? FinalAction::ALLOW,
+            enforcementMode: $str('enforcement_mode'),
+            signatureAgent: $nullableStr('signature_agent'),
+            signatureInput: $nullableStr('signature_input'),
+            signature: $nullableStr('signature'),
+            secFetchMode: $nullableStr('sec_fetch_mode'),
+            secFetchSite: $nullableStr('sec_fetch_site'),
+            secFetchDest: $nullableStr('sec_fetch_dest'),
+            secFetchUser: $nullableStr('sec_fetch_user'),
+            secChUa: $nullableStr('sec_ch_ua'),
+            secChUaMobile: $nullableStr('sec_ch_ua_mobile'),
+            secChUaPlatform: $nullableStr('sec_ch_ua_platform'),
+            accept: $nullableStr('accept'),
+            host: $nullableStr('host'),
+            hasCookies: (bool) ($data['has_cookies'] ?? false),
+            headerNames: array_values(array_map('strval', (array) ($data['header_names'] ?? []))),
+            queryLength: $nullableInt('query_length'),
+            queryParamCount: $nullableInt('query_param_count'),
+            querySuspicious: isset($data['query_suspicious']) ? (bool) $data['query_suspicious'] : null,
+            acceptEncoding: $nullableStr('accept_encoding'),
+            httpProtocol: $nullableStr('http_protocol'),
+            tlsVersion: $nullableStr('tls_version'),
+            tlsCipher: $nullableStr('tls_cipher'),
+            tlsClientHelloLength: $nullableInt('tls_client_hello_length'),
+            tlsClientExtensionsSha1: $nullableStr('tls_client_extensions_sha1'),
+            asOrganization: $nullableStr('as_organization'),
+            clientTcpRtt: $nullableInt('client_tcp_rtt'),
+            cdnVerifiedBotCategory: $nullableStr('cdn_verified_bot_category'),
+            requestPriority: $nullableStr('request_priority'),
+            tlsFingerprintJa4: $nullableStr('tls_fingerprint_ja4'),
+        );
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

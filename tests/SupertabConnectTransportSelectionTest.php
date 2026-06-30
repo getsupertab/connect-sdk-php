@@ -7,6 +7,7 @@ namespace Supertab\Connect\Tests;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use Supertab\Connect\Analytics\AnalyticsTransportInterface;
+use Supertab\Connect\Analytics\DeferredAnalyticsTransport;
 use Supertab\Connect\Analytics\HttpAnalyticsTransport;
 use Supertab\Connect\Analytics\NoopAnalyticsTransport;
 use Supertab\Connect\SupertabConnect;
@@ -30,13 +31,21 @@ final class SupertabConnectTransportSelectionTest extends TestCase
         return (new ReflectionProperty(SupertabConnect::class, 'analyticsTransport'))->getValue($stc);
     }
 
-    public function test_enabled_uses_http_transport_by_default(): void
+    private function innerOf(DeferredAnalyticsTransport $transport): AnalyticsTransportInterface
     {
-        // Analytics enabled → the per-request HTTP transport with a short
-        // timeout. (Cross-request connection reuse lands separately.)
+        return (new ReflectionProperty(DeferredAnalyticsTransport::class, 'inner'))->getValue($transport);
+    }
+
+    public function test_enabled_wraps_http_transport_in_deferred_by_default(): void
+    {
+        // Analytics enabled → the HTTP transport, wrapped in the deferred
+        // decorator so the POST leaves the user-perceived latency path on
+        // FastCGI SAPIs (and falls back to synchronous everywhere else).
         $stc = new SupertabConnect(apiKey: 'test-key', analyticsEnabled: true);
 
-        $this->assertInstanceOf(HttpAnalyticsTransport::class, $this->transportOf($stc));
+        $transport = $this->transportOf($stc);
+        $this->assertInstanceOf(DeferredAnalyticsTransport::class, $transport);
+        $this->assertInstanceOf(HttpAnalyticsTransport::class, $this->innerOf($transport));
     }
 
     public function test_disabled_uses_noop(): void

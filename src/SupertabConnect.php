@@ -7,6 +7,7 @@ namespace Supertab\Connect;
 use Supertab\Connect\Analytics\AnalyticsEventFactory;
 use Supertab\Connect\Analytics\AnalyticsTransportInterface;
 use Supertab\Connect\Analytics\Decision;
+use Supertab\Connect\Analytics\DeferredAnalyticsTransport;
 use Supertab\Connect\Analytics\Enum\FinalAction;
 use Supertab\Connect\Analytics\Enum\TokenOutcome;
 use Supertab\Connect\Analytics\HttpAnalyticsTransport;
@@ -112,6 +113,15 @@ final class SupertabConnect
      * WordPress's wp_remote_* API on VIP). Only when no client is injected does
      * it fall back to a default client with a short timeout, keeping emission
      * fail-open and bounded for that case.
+     *
+     * The default HTTP transport is wrapped in {@see DeferredAnalyticsTransport}
+     * so that, on FastCGI-style SAPIs (PHP-FPM, LiteSpeed, FrankenPHP), the POST
+     * runs after the response has been flushed to the client instead of on the
+     * user-perceived latency path. Where `fastcgi_finish_request()` is absent
+     * (mod_php, CLI), the decorator falls back to synchronous delivery. An
+     * injected transport is used as-is — it is the seam integrators use to route
+     * analytics through their own deferral (e.g. a WordPress Action Scheduler
+     * job via {@see CallbackAnalyticsTransport}), so the SDK does not re-wrap it.
      */
     private function buildAnalyticsTransport(
         ?AnalyticsTransportInterface $injected,
@@ -126,10 +136,13 @@ final class SupertabConnect
             return new NoopAnalyticsTransport;
         }
 
-        return new HttpAnalyticsTransport(
-            $this->apiKey,
-            self::$baseUrl,
-            $httpClient ?? new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
+        return new DeferredAnalyticsTransport(
+            new HttpAnalyticsTransport(
+                $this->apiKey,
+                self::$baseUrl,
+                $httpClient ?? new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
+                $this->debug,
+            ),
             $this->debug,
         );
     }
@@ -278,9 +291,9 @@ final class SupertabConnect
      *
      * Exactly one analytics event is emitted per request (across every branch),
      * which is what bot classification needs. Emission is fail-open — it never
-     * throws or alters request handling — and synchronous; with the default
-     * transport its added latency is bounded by a short timeout. Analytics is
-     * off unless enabled.
+     * throws or alters request handling. With the default transport the POST is
+     * deferred past response flush on FastCGI SAPIs and otherwise runs
+     * synchronously with a bounded timeout. Analytics is off unless enabled.
      *
      * When no RequestContext is provided, reads from $_SERVER superglobals.
      */
