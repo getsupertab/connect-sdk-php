@@ -135,4 +135,34 @@ final class SupertabConnectTransportSelectionTest extends TestCase
         $this->assertInstanceOf(HttpAnalyticsTransport::class, $this->innerOf($transport));
         $this->assertFalse($this->deferralAvailableOf($transport));
     }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_forced_sync_logs_notice_when_debug_enabled(): void
+    {
+        define('SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS', true);
+        $logFile = tempnam(sys_get_temp_dir(), 'stc-log-');
+        ini_set('error_log', $logFile);
+
+        new SupertabConnect(apiKey: 'test-key', debug: true, analyticsEnabled: true);
+
+        $contents = file_get_contents($logFile);
+        unlink($logFile);
+        $this->assertStringContainsString('SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS', $contents);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_forced_sync_does_not_log_when_debug_disabled(): void
+    {
+        define('SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS', true);
+        $logFile = tempnam(sys_get_temp_dir(), 'stc-log-');
+        ini_set('error_log', $logFile);
+
+        new SupertabConnect(apiKey: 'test-key', debug: false, analyticsEnabled: true);
+
+        $contents = file_get_contents($logFile);
+        unlink($logFile);
+        $this->assertStringNotContainsString('SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS', $contents);
+    }
 }

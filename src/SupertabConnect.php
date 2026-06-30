@@ -138,6 +138,10 @@ final class SupertabConnect
 
         $forceSync = $this->shouldForceSyncAnalytics();
 
+        if ($forceSync && $this->debug) {
+            error_log('[SupertabConnect] Analytics deferral forced off via SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS; emitting synchronously.');
+        }
+
         return new DeferredAnalyticsTransport(
             new HttpAnalyticsTransport(
                 $this->apiKey,
