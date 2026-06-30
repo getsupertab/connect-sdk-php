@@ -89,6 +89,41 @@ final class SupertabConnectAnalyticsTest extends TestCase
         $stc->handleRequest(new RequestContext(url: 'https://example.com/article'));
     }
 
+    public function test_enabled_analytics_emits_via_injected_http_client(): void
+    {
+        // When analytics is enabled and a custom HTTP client is injected, the
+        // analytics transport MUST route through that injected client (e.g. a
+        // WordPress wp_remote_* adapter) rather than a self-constructed default
+        // client, so emission works on hosts that block direct outbound
+        // connections (WP VIP, managed hosts, proxied egress).
+        $postedUrls = [];
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url) use (&$postedUrls): array {
+                $postedUrls[] = $url;
+
+                return ['statusCode' => 202, 'body' => ''];
+            });
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            httpClient: $httpClient,
+            analyticsEnabled: true,
+        );
+
+        $stc->handleRequest(new RequestContext(url: 'https://example.com/article'));
+
+        $ingestPosts = array_values(array_filter(
+            $postedUrls,
+            fn (string $url): bool => str_ends_with($url, '/ingest/events'),
+        ));
+        $this->assertCount(
+            1,
+            $ingestPosts,
+            'analytics event should be POSTed to /ingest/events via the injected HTTP client',
+        );
+    }
+
     // --- One event per request, correct decision per branch ---
 
     public function test_emits_absent_allow_for_non_bot_without_token(): void

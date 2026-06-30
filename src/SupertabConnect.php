@@ -96,7 +96,7 @@ final class SupertabConnect
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
         $this->botDetector = $botDetector ?? null;
         $this->analyticsEventFactory = new AnalyticsEventFactory;
-        $this->analyticsTransport = $this->buildAnalyticsTransport($analyticsTransport, $analyticsEnabled);
+        $this->analyticsTransport = $this->buildAnalyticsTransport($analyticsTransport, $analyticsEnabled, $httpClient);
 
         self::$instance = $this;
     }
@@ -104,12 +104,19 @@ final class SupertabConnect
     /**
      * Select the analytics transport. An explicitly injected transport (the
      * internal DI / escape-hatch seam) wins; otherwise a no-op when analytics is
-     * disabled, or a per-request HTTP transport with a short timeout when
-     * enabled, so emission stays fail-open and bounded.
+     * disabled, or an HTTP transport when enabled.
+     *
+     * The HTTP transport reuses the caller-supplied HTTP client so analytics
+     * shares the same egress path as the rest of the SDK — important on hosts
+     * that block direct outbound connections and require their own client (e.g.
+     * WordPress's wp_remote_* API on VIP). Only when no client is injected does
+     * it fall back to a default client with a short timeout, keeping emission
+     * fail-open and bounded for that case.
      */
     private function buildAnalyticsTransport(
         ?AnalyticsTransportInterface $injected,
         bool $analyticsEnabled,
+        ?HttpClientInterface $httpClient,
     ): AnalyticsTransportInterface {
         if ($injected !== null) {
             return $injected;
@@ -122,7 +129,7 @@ final class SupertabConnect
         return new HttpAnalyticsTransport(
             $this->apiKey,
             self::$baseUrl,
-            new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
+            $httpClient ?? new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
             $this->debug,
         );
     }
