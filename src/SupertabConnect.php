@@ -136,6 +136,8 @@ final class SupertabConnect
             return new NoopAnalyticsTransport;
         }
 
+        $forceSync = $this->shouldForceSyncAnalytics();
+
         return new DeferredAnalyticsTransport(
             new HttpAnalyticsTransport(
                 $this->apiKey,
@@ -144,7 +146,25 @@ final class SupertabConnect
                 $this->debug,
             ),
             $this->debug,
+            deferralAvailable: $forceSync ? false : null,
         );
+    }
+
+    /**
+     * Benchmarking/diagnostic escape hatch. When the
+     * `SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS` constant is defined truthy, the
+     * default analytics transport emits synchronously instead of deferring the
+     * POST past response flush on FastCGI SAPIs — letting deferred-vs-sync
+     * response latency be compared on the same host.
+     *
+     * Read from a constant (not a constructor parameter) on purpose, so it
+     * stays off the public API surface. Only affects the default transport;
+     * an injected transport owns its own deferral.
+     */
+    private function shouldForceSyncAnalytics(): bool
+    {
+        return defined('SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS')
+            && filter_var(constant('SUPERTAB_CONNECT_FORCE_SYNC_ANALYTICS'), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
