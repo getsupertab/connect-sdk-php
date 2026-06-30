@@ -113,12 +113,12 @@ $connect = new SupertabConnect(
     analyticsEnabled: true,
     // emit() just enqueues — returns immediately, off the visitor request
     analyticsTransport: new CallbackAnalyticsTransport(
-        fn (AnalyticsEvent $e) => as_enqueue_async_action('stc_emit_analytics', [$e->toArray()]),
+        fn (AnalyticsEvent $e) => as_enqueue_async_action('supertab_connect_emit_analytics', [$e->toArray()]),
     ),
 );
 
 // The scheduled job runs in a cron/loopback worker; the POST is plain synchronous there.
-add_action('stc_emit_analytics', function (array $payload) use ($apiKey) {
+add_action('supertab_connect_emit_analytics', function (array $payload) use ($apiKey) {
     (new HttpAnalyticsTransport($apiKey, SupertabConnect::getBaseUrl(), new HttpClient))
         ->emit(AnalyticsEvent::fromArray($payload));
 });
