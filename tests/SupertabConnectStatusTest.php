@@ -95,6 +95,26 @@ final class SupertabConnectStatusTest extends TestCase
         $this->assertSame('observe', $payload['enforcement']);
     }
 
+    public function test_event_reporting_true_when_transport_injected_despite_flag_off(): void
+    {
+        // An injected transport emits events regardless of the analyticsEnabled
+        // flag (buildAnalyticsTransport returns it before checking the flag), so
+        // eventReporting must reflect the effective transport, not the flag.
+        $captured = [];
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            httpClient: $this->jwksClient(),
+            // analyticsEnabled left at its default false...
+            analyticsTransport: $this->recordingTransport($captured), // ...but a transport is injected
+        );
+
+        $result = $stc->handleRequest($this->statusContext($this->challenge()));
+
+        $this->assertInstanceOf(RespondResult::class, $result);
+        $payload = json_decode($result->body, true);
+        $this->assertTrue($payload['eventReporting']);
+    }
+
     public function test_invalid_challenge_returns_404_minimal_body(): void
     {
         $stc = new SupertabConnect(apiKey: 'test-key', httpClient: $this->jwksClient());

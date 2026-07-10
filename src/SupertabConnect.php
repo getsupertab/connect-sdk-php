@@ -68,7 +68,7 @@ final class SupertabConnect
         ?HttpClientInterface $httpClient = null,
         ?BotDetectorInterface $botDetector = null,
         ?CacheInterface $cache = null,
-        private readonly bool $analyticsEnabled = false,
+        bool $analyticsEnabled = false,
         ?AnalyticsTransportInterface $analyticsTransport = null,
     ) {
         if ($this->apiKey === '') {
@@ -484,7 +484,12 @@ final class SupertabConnect
                 'runtime' => null,
                 'sdkVersion' => HttpClient::resolveVersion(),
                 'enforcement' => $this->enforcement->value,
-                'eventReporting' => $this->analyticsEnabled,
+                // Reflect whether events will actually be emitted, derived from
+                // the effective transport rather than the config flag: an
+                // injected transport enables reporting regardless of the flag,
+                // and it is the transport (not the flag) that is copied on
+                // singleton reuse.
+                'eventReporting' => ! ($this->analyticsTransport instanceof NoopAnalyticsTransport),
             ]),
             headers: $headers,
         );
