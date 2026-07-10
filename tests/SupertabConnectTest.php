@@ -179,6 +179,103 @@ final class SupertabConnectTest extends TestCase
         $this->assertArrayHasKey('X-RSL-Status', $result->headers);
     }
 
+    // --- RSL discovery: Link header on allowed responses ---
+
+    public function test_handle_request_disabled_no_token_advertises_license_link(): void
+    {
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::DISABLED,
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: null,
+        ));
+
+        $this->assertInstanceOf(AllowResult::class, $result);
+        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+        $this->assertStringContainsString('rel="license"', $result->headers['Link']);
+    }
+
+    public function test_handle_request_disabled_with_token_advertises_license_link(): void
+    {
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::DISABLED,
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: 'License some-token',
+        ));
+
+        $this->assertInstanceOf(AllowResult::class, $result);
+        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+    }
+
+    public function test_handle_request_non_bot_allow_advertises_license_link(): void
+    {
+        $botDetector = $this->createMock(BotDetectorInterface::class);
+        $botDetector->method('isBot')->willReturn(false);
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::ENFORCE,
+            botDetector: $botDetector,
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: null,
+        ));
+
+        $this->assertInstanceOf(AllowResult::class, $result);
+        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+    }
+
+    public function test_handle_request_bot_disabled_allow_advertises_license_link(): void
+    {
+        $botDetector = $this->createMock(BotDetectorInterface::class);
+        $botDetector->method('isBot')->willReturn(true);
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::DISABLED,
+            botDetector: $botDetector,
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: null,
+        ));
+
+        $this->assertInstanceOf(AllowResult::class, $result);
+        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+    }
+
+    public function test_handle_request_observe_signal_keeps_link_and_custom_headers(): void
+    {
+        $botDetector = $this->createMock(BotDetectorInterface::class);
+        $botDetector->method('isBot')->willReturn(true);
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::OBSERVE,
+            botDetector: $botDetector,
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: null,
+        ));
+
+        // Observe signal advertises discovery AND the request-state signal headers.
+        $this->assertStringContainsString('rel="license"', $result->headers['Link']);
+        $this->assertSame('token_required', $result->headers['X-RSL-Status']);
+        $this->assertSame('missing', $result->headers['X-RSL-Reason']);
+    }
+
     // --- Bot Detection Integration ---
 
     public function test_handle_request_allows_non_bot_without_token(): void
