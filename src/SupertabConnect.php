@@ -29,17 +29,23 @@ use Supertab\Connect\License\LicenseTokenVerifier;
 use Supertab\Connect\License\ResponseBuilder;
 use Supertab\Connect\Result\AllowResult;
 use Supertab\Connect\Result\HandlerResult;
+use Supertab\Connect\Result\RespondResult;
 use Supertab\Connect\Result\VerificationResult;
+use Supertab\Connect\Status\StatusChallengeVerifier;
 
 final class SupertabConnect
 {
     private const ANALYTICS_TIMEOUT_SECONDS = 1;
+
+    private const STATUS_PATH = '/.well-known/supertab/status';
 
     private static string $baseUrl = 'https://api-connect.supertab.co';
 
     private static ?self $instance = null;
 
     private readonly LicenseTokenVerifier $verifier;
+
+    private readonly StatusChallengeVerifier $statusVerifier;
 
     private readonly EventRecorder $eventRecorder;
 
@@ -63,7 +69,7 @@ final class SupertabConnect
         ?HttpClientInterface $httpClient = null,
         ?BotDetectorInterface $botDetector = null,
         ?CacheInterface $cache = null,
-        bool $analyticsEnabled = false,
+        private readonly bool $analyticsEnabled = false,
         ?AnalyticsTransportInterface $analyticsTransport = null,
     ) {
         if ($this->apiKey === '') {
@@ -83,6 +89,7 @@ final class SupertabConnect
             // Return existing instance — but PHP constructors can't return a different object,
             // so we copy internal dependencies from the existing instance instead.
             $this->verifier = self::$instance->verifier;
+            $this->statusVerifier = self::$instance->statusVerifier;
             $this->eventRecorder = self::$instance->eventRecorder;
             $this->botDetector = self::$instance->botDetector;
             $this->analyticsEventFactory = self::$instance->analyticsEventFactory;
@@ -94,6 +101,7 @@ final class SupertabConnect
         $client = $httpClient ?? new HttpClient;
         $jwksProvider = new JwksProvider(self::$baseUrl, $client, $this->debug, $cache);
         $this->verifier = new LicenseTokenVerifier($jwksProvider, self::$baseUrl, $this->debug);
+        $this->statusVerifier = new StatusChallengeVerifier($jwksProvider, $this->debug);
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
         $this->botDetector = $botDetector ?? null;
         $this->analyticsEventFactory = new AnalyticsEventFactory;
@@ -325,10 +333,21 @@ final class SupertabConnect
     {
         $context ??= RequestContext::fromGlobals();
 
+        $url = $context->url;
+
+        // Self-report status probe short-circuits before token verification, bot
+        // detection, and analytics, so a probe never looks like real traffic or
+        // emits an event. Cheap substring pre-filter, then exact path match.
+        if (
+            str_contains($url, self::STATUS_PATH)
+            && parse_url($url, PHP_URL_PATH) === self::STATUS_PATH
+        ) {
+            return $this->handleStatusRequest($context, $url);
+        }
+
         $auth = $context->authorizationHeader ?? '';
         $token = str_starts_with($auth, 'License ') ? substr($auth, 8) : null;
         $hasToken = $token !== null;
-        $url = $context->url;
 
         // Build and emit one analytics event for this request. Fail-open: any
         // failure here must never affect the returned HandlerResult.
@@ -427,5 +446,66 @@ final class SupertabConnect
 
                 return new AllowResult;
         }
+    }
+
+    /**
+     * Serve the self-report status endpoint. A request carrying a valid,
+     * backend-minted ES256 challenge (Authorization: Bearer, purpose
+     * "status-probe", aud = the request origin) gets the live running config
+     * back; anything else gets a minimal `{ "supertab": true }` 404. Both set
+     * `Cache-Control: no-store`.
+     *
+     * `runtime` and `merchantUrn` are omitted (emitted as null / left out) until
+     * they are plumbed through the request context.
+     */
+    private function handleStatusRequest(RequestContext $context, string $url): RespondResult
+    {
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Cache-Control' => 'no-store',
+        ];
+
+        $auth = $context->authorizationHeader ?? '';
+        $token = str_starts_with($auth, 'Bearer ') ? substr($auth, 7) : '';
+
+        $ok = $token !== ''
+            && $this->statusVerifier->verify($token, $this->originFromUrl($url));
+
+        if (! $ok) {
+            return new RespondResult(
+                status: 404,
+                body: (string) json_encode(['supertab' => true]),
+                headers: $headers,
+            );
+        }
+
+        return new RespondResult(
+            status: 200,
+            body: (string) json_encode([
+                'runtime' => null,
+                'sdkVersion' => HttpClient::resolveVersion(),
+                'enforcement' => $this->enforcement->value,
+                'eventReporting' => $this->analyticsEnabled,
+            ]),
+            headers: $headers,
+        );
+    }
+
+    /**
+     * Derive the request origin (scheme://host[:port]) used as the expected
+     * challenge audience. Returns an empty string when the URL is unparseable,
+     * which no valid challenge audience can match.
+     */
+    private function originFromUrl(string $url): string
+    {
+        $parsed = parse_url($url);
+
+        if ($parsed === false || ! isset($parsed['scheme'], $parsed['host'])) {
+            return '';
+        }
+
+        $port = isset($parsed['port']) ? ":{$parsed['port']}" : '';
+
+        return "{$parsed['scheme']}://{$parsed['host']}{$port}";
     }
 }

@@ -23,19 +23,27 @@ final class HttpClient implements HttpClientInterface
             return self::$userAgent;
         }
 
-        $version = 'unknown';
+        return self::$userAgent = 'supertab-connect-sdk-php/' . self::resolveVersion();
+    }
+
+    /**
+     * Resolve the installed SDK version via Composer's runtime API, falling back
+     * to 'unknown' when the package isn't registered (e.g. path/dev checkouts).
+     */
+    public static function resolveVersion(): string
+    {
         if (class_exists(InstalledVersions::class)) {
             try {
                 $resolved = InstalledVersions::getPrettyVersion('getsupertab/connect-sdk-php');
                 if ($resolved !== null && $resolved !== '') {
-                    $version = $resolved;
+                    return $resolved;
                 }
             } catch (\OutOfBoundsException) {
                 // package not registered with Composer runtime — keep fallback
             }
         }
 
-        return self::$userAgent = "supertab-connect-sdk-php/{$version}";
+        return 'unknown';
     }
 
     /**
