@@ -23,8 +23,7 @@ composer require getsupertab/connect-sdk-php
 ```php
 use Supertab\Connect\SupertabConnect;
 use Supertab\Connect\Enum\EnforcementMode;
-use Supertab\Connect\Result\AllowResult;
-use Supertab\Connect\Result\BlockResult;
+use Supertab\Connect\Enum\HandlerAction;
 
 $connect = new SupertabConnect(
     apiKey: 'stc_live_your_api_key',
@@ -33,12 +32,15 @@ $connect = new SupertabConnect(
 
 $result = $connect->handleRequest();
 
-// Send returned RSL headers (Link, WWW-Authenticate, X-RSL-Status, etc.)
+// Send returned headers (RSL headers such as Link / WWW-Authenticate, or
+// Cache-Control for the self-report status endpoint).
 foreach ($result->headers as $name => $value) {
     header("{$name}: {$value}");
 }
 
-if ($result instanceof BlockResult) {
+// Any non-ALLOW result carries a status + body to emit: BLOCK (invalid/missing
+// token) and RESPOND (the self-report status endpoint) both end the request.
+if ($result->action !== HandlerAction::ALLOW) {
     http_response_code($result->status);
     echo $result->body;
     exit;
@@ -151,7 +153,7 @@ Handles an incoming request end-to-end: extracts the license token from the `Aut
 |-----------|------|----------|---------|-------------|
 | `context` | `?RequestContext` | No | `null` | Request info. Defaults to `RequestContext::fromGlobals()` which reads from `$_SERVER`. |
 
-**Returns:** `HandlerResult` — either `AllowResult` (action: ALLOW) or `BlockResult` (action: BLOCK, with `status`, `body`, and `headers`).
+**Returns:** `HandlerResult` — `AllowResult` (action: ALLOW), `BlockResult` (action: BLOCK, with `status`, `body`, and `headers`), or `RespondResult` (action: RESPOND, same shape as `BlockResult`) for the [self-report status endpoint](#self-report-status-endpoint). Emit `status`/`body`/`headers` for any non-ALLOW result.
 
 When integrating with a framework, pass a `RequestContext` instead of relying on `$_SERVER`:
 
@@ -309,23 +311,41 @@ Clears the singleton instance, allowing a new one to be created with different c
 
 ---
 
+## Self-Report Status Endpoint
+
+`handleRequest()` also serves `GET /.well-known/supertab/status`, which lets the Supertab backend observe an SDK's live health by comparing configured-vs-confirmed settings. The branch short-circuits at the top of `handleRequest()` — before token verification, bot detection, and analytics — so a probe never looks like real traffic or emits an event.
+
+A request carrying a valid, backend-minted challenge (`Authorization: Bearer <jwt>`, an ES256 token with `purpose: "status-probe"` and `aud` equal to the request origin) gets the live running config back:
+
+```json
+{ "runtime": null, "sdkVersion": "v1.4.0", "enforcement": "enforce", "eventReporting": true }
+```
+
+Any other request (missing, malformed, expired, or wrong-audience challenge) gets a minimal `{"supertab": true}` with a `404` status. Both responses set `Cache-Control: no-store`. Challenge verification reuses the same platform JWKS the SDK already fetches for license tokens — no extra configuration.
+
+Because the endpoint is served through `handleRequest()`, no extra wiring is needed: the dispatch shown above (emit `status`/`body`/`headers` for any non-ALLOW `HandlerResult`) already returns the probe response. The result is a `RespondResult` (`action: RESPOND`).
+
+---
+
 ## Result Types
 
 ### `HandlerResult` (returned by `handleRequest()`)
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `action` | `HandlerAction` | `ALLOW` or `BLOCK` |
-| `headers` | `array<string, string>` | RSL response headers |
+| `action` | `HandlerAction` | `ALLOW`, `BLOCK`, or `RESPOND` |
+| `headers` | `array<string, string>` | Response headers |
 
-`BlockResult` adds `status: int` and `body: string`.
+`BlockResult` and `RespondResult` both add `status: int` and `body: string`.
 
 ```php
+use Supertab\Connect\Enum\HandlerAction;
+
 foreach ($result->headers as $name => $value) {
     header("{$name}: {$value}");
 }
 
-if ($result instanceof BlockResult) {
+if ($result->action !== HandlerAction::ALLOW) {
     http_response_code($result->status);
     echo $result->body;
     exit;
