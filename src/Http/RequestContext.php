@@ -77,7 +77,7 @@ final class RequestContext
 
         $authorization = self::resolveAuthorizationHeader(
             $_SERVER,
-            function_exists('getallheaders') ? getallheaders() : [],
+            function_exists('getallheaders') ? (getallheaders() ?: []) : [],
         );
 
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
