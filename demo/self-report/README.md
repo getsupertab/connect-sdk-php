@@ -35,31 +35,17 @@ curl -si localhost:8080/.well-known/supertab/status | head -5 # → 404 {"supert
 curl -s localhost:8080/ | head -3                             # → demo HTML page
 ```
 
-## Deploy to AWS App Runner
+## Deploy
 
-App Runner has no managed PHP runtime, so it deploys from a container image
-in ECR.
-
-```bash
-AWS_ACCOUNT=<account-id> AWS_REGION=<region>
-REPO=$AWS_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/supertab-self-report-demo
-
-aws ecr create-repository --repository-name supertab-self-report-demo --region $AWS_REGION
-aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPO
-docker build --platform linux/amd64 -t ${REPO}:latest .
-docker push ${REPO}:latest
-```
-
-Create the service (console or CLI): **source** = the ECR image with
-auto-deployment on push, **port** = `8080`, **size** = 0.25 vCPU / 512 MB,
-**health check** = HTTP on `/healthz`, and the env vars above (at minimum
-`SUPERTAB_MERCHANT_API_KEY`).
+See [DEPLOY.md](DEPLOY.md) — the site runs on Fly.io
+(https://supertab-self-report-demo.fly.dev), one always-warm machine,
+`fly.toml` committed here.
 
 ## Register the site (required for probes)
 
 The backend only mints status challenges (`aud` = origin) for origins it
-knows. Register the service URL — `https://<id>.<region>.awsapprunner.com`
-— as a merchant website in **sandbox**. If the URL changes (service
+knows. Register the service URL — `https://supertab-self-report-demo.fly.dev`
+— as a merchant website in **sandbox**. If the URL changes (app
 recreated), re-register.
 
 ## Probe flow
