@@ -318,7 +318,7 @@ Clears the singleton instance, allowing a new one to be created with different c
 A request carrying a valid, backend-minted challenge (`Authorization: Bearer <jwt>`, an ES256 token with `purpose: "status-probe"` and `aud` equal to the request origin) gets the live running config back:
 
 ```json
-{ "runtime": null, "sdkVersion": "v1.4.0", "enforcement": "enforce", "eventReporting": true }
+{ "runtime": null, "sdkVersion": "v1.4.0", "component": { "kind": "php-sdk", "version": "v1.4.0" }, "enforcement": "enforce", "eventReporting": true }
 ```
 
 Any other request (missing, malformed, expired, or wrong-audience challenge) gets a minimal `{"supertab": true}` with a `404` status. Both responses set `Cache-Control: no-store`. Challenge verification reuses the same platform JWKS the SDK already fetches for license tokens — no extra configuration.

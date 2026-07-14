@@ -483,6 +483,13 @@ final class SupertabConnect
             body: (string) json_encode([
                 'runtime' => null,
                 'sdkVersion' => HttpClient::resolveVersion(),
+                // Self-describing component identity: the backend maps the kind
+                // to the right update registry (Packagist for php-sdk), instead
+                // of legacy-shimming a bare sdkVersion to ts-sdk/npm.
+                'component' => [
+                    'kind' => 'php-sdk',
+                    'version' => HttpClient::resolveVersion(),
+                ],
                 'enforcement' => $this->enforcement->value,
                 // Reflect whether events will actually be emitted, derived from
                 // the effective transport rather than the config flag: an

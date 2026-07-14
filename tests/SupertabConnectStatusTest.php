@@ -115,6 +115,23 @@ final class SupertabConnectStatusTest extends TestCase
         $this->assertTrue($payload['eventReporting']);
     }
 
+    public function test_status_payload_carries_php_sdk_component_identity(): void
+    {
+        // The backend resolves the update registry per component kind
+        // (wordpress.org / npm / Packagist); without this field a PHP
+        // deployment is legacy-shimmed to ts-sdk and checked against npm.
+        $stc = new SupertabConnect(apiKey: 'test-key', httpClient: $this->jwksClient());
+
+        $result = $stc->handleRequest($this->statusContext($this->challenge()));
+
+        $this->assertInstanceOf(RespondResult::class, $result);
+        $payload = json_decode($result->body, true);
+        $this->assertSame(
+            ['kind' => 'php-sdk', 'version' => $payload['sdkVersion']],
+            $payload['component'],
+        );
+    }
+
     public function test_invalid_challenge_returns_404_minimal_body(): void
     {
         $stc = new SupertabConnect(apiKey: 'test-key', httpClient: $this->jwksClient());
