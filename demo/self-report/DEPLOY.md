@@ -74,7 +74,7 @@ cat > /tmp/apprunner-source.json <<EOF
     "ImageConfiguration": {
       "Port": "8080",
       "RuntimeEnvironmentVariables": {
-        "SUPERTAB_MERCHANT_API_KEY": "<your-sandbox-merchant-key>",
+        "SUPERTAB_MERCHANT_API_KEY": "placeholder",
         "SUPERTAB_ENFORCEMENT": "observe"
       }
     }
@@ -89,8 +89,17 @@ aws apprunner create-service \
   --instance-configuration '{"Cpu":"0.25 vCPU","Memory":"0.5 GB"}' \
   --health-check-configuration '{"Protocol":"HTTP","Path":"/healthz"}'
 
-rm /tmp/apprunner-source.json   # contains your merchant key
+rm /tmp/apprunner-source.json
 ```
+
+The API key starts as `placeholder` on purpose: sandbox registration needs
+the site's domain, and the domain (ServiceUrl) only exists once the service
+does. The service runs fine meanwhile — `/healthz` short-circuits before the
+config check and challenge verification uses the public platform JWKS; only
+analytics delivery would 401-and-drop. After step 6 issues the real key,
+swap it in (console → Configuration → Edit env vars, or
+`aws apprunner update-service` with the same source-config file) — the
+service rolls automatically.
 
 `SUPERTAB_BASE_URL` and `SUPERTAB_ANALYTICS` default to sandbox / on — set
 them only to override.
@@ -116,12 +125,17 @@ curl -si https://$HOST/.well-known/supertab/status | head -5    # → 404 {"supe
 curl -s  https://$HOST/ | grep "SDK version"                    # → v1.4.0-beta.9
 ```
 
-## 6. Register the site in sandbox (required)
+## 6. Register the site in sandbox and set the real key (required)
 
 Register `https://<ServiceUrl>` as a merchant website in the **sandbox**
-environment. The backend only mints status challenges with `aud` = a
-registered origin — probes silently get the decoy otherwise. If the App
-Runner service is ever recreated, the URL changes: re-register.
+environment — registration is what issues the merchant API key for the
+site. The backend only mints status challenges with `aud` = a registered
+origin — probes silently get the decoy otherwise. If the App Runner
+service is ever recreated, the URL changes: re-register.
+
+Then replace the `placeholder` API key on the service (console →
+Configuration → Edit env vars, or `aws apprunner update-service`) and wait
+for the rollout to finish.
 
 ## 7. Trigger the real end-to-end probe
 
