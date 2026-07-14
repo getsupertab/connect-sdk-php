@@ -48,37 +48,48 @@ doesn't already have `AppRunnerECRAccessRole`:
 
 ```bash
 aws iam create-role --role-name AppRunnerECRAccessRole \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{"Effect": "Allow", "Principal": {"Service": "build.apprunner.amazonaws.com"}, "Action": "sts:AssumeRole"}]
-  }'
+  --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"build.apprunner.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
 aws iam attach-role-policy --role-name AppRunnerECRAccessRole \
   --policy-arn arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
 ```
 
+(The policy JSON is deliberately one line: copy-pasting indented JSON from
+rendered docs can smuggle in non-breaking spaces, which IAM rejects as
+`MalformedPolicyDocument`.)
+
 ## 4. Create the App Runner service (once)
 
+Write the source configuration to a file first (the heredoc expands
+`$AWS_ACCOUNT`/`$REPO` for you, and `file://` input sidesteps shell-quoting
+and copy-paste whitespace issues):
+
 ```bash
+cat > /tmp/apprunner-source.json <<EOF
+{
+  "AuthenticationConfiguration": {"AccessRoleArn": "arn:aws:iam::${AWS_ACCOUNT}:role/AppRunnerECRAccessRole"},
+  "AutoDeploymentsEnabled": true,
+  "ImageRepository": {
+    "ImageIdentifier": "${REPO}:latest",
+    "ImageRepositoryType": "ECR",
+    "ImageConfiguration": {
+      "Port": "8080",
+      "RuntimeEnvironmentVariables": {
+        "SUPERTAB_MERCHANT_API_KEY": "<your-sandbox-merchant-key>",
+        "SUPERTAB_ENFORCEMENT": "observe"
+      }
+    }
+  }
+}
+EOF
+
 aws apprunner create-service \
   --region $AWS_REGION \
   --service-name supertab-self-report-demo \
-  --source-configuration '{
-    "AuthenticationConfiguration": {"AccessRoleArn": "arn:aws:iam::'$AWS_ACCOUNT':role/AppRunnerECRAccessRole"},
-    "AutoDeploymentsEnabled": true,
-    "ImageRepository": {
-      "ImageIdentifier": "'$REPO':latest",
-      "ImageRepositoryType": "ECR",
-      "ImageConfiguration": {
-        "Port": "8080",
-        "RuntimeEnvironmentVariables": {
-          "SUPERTAB_MERCHANT_API_KEY": "<your-sandbox-merchant-key>",
-          "SUPERTAB_ENFORCEMENT": "observe"
-        }
-      }
-    }
-  }' \
-  --instance-configuration '{"Cpu": "0.25 vCPU", "Memory": "0.5 GB"}' \
-  --health-check-configuration '{"Protocol": "HTTP", "Path": "/healthz"}'
+  --source-configuration file:///tmp/apprunner-source.json \
+  --instance-configuration '{"Cpu":"0.25 vCPU","Memory":"0.5 GB"}' \
+  --health-check-configuration '{"Protocol":"HTTP","Path":"/healthz"}'
+
+rm /tmp/apprunner-source.json   # contains your merchant key
 ```
 
 `SUPERTAB_BASE_URL` and `SUPERTAB_ANALYTICS` default to sandbox / on — set
