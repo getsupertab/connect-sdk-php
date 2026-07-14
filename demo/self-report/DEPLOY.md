@@ -35,8 +35,8 @@ aws ecr create-repository \
 cd demo/self-report
 aws ecr get-login-password --region $AWS_REGION | \
   docker login --username AWS --password-stdin $REPO
-docker build --platform linux/amd64 -t $REPO:latest .
-docker push $REPO:latest
+docker build --platform linux/amd64 -t ${REPO}:latest .
+docker push ${REPO}:latest
 ```
 
 `--platform linux/amd64` matters on Apple Silicon — App Runner runs x86_64.
@@ -131,7 +131,7 @@ cd demo/self-report
 # bump the pin in composer.json, then:
 composer update getsupertab/connect-sdk-php
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPO
-docker build --platform linux/amd64 -t $REPO:latest . && docker push $REPO:latest
+docker build --platform linux/amd64 -t ${REPO}:latest . && docker push ${REPO}:latest
 ```
 
 Auto-deployment picks up the push and redeploys (~1–2 min). Commit the pin

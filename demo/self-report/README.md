@@ -46,8 +46,8 @@ REPO=$AWS_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/supertab-self-report-demo
 
 aws ecr create-repository --repository-name supertab-self-report-demo --region $AWS_REGION
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPO
-docker build --platform linux/amd64 -t $REPO:latest .
-docker push $REPO:latest
+docker build --platform linux/amd64 -t ${REPO}:latest .
+docker push ${REPO}:latest
 ```
 
 Create the service (console or CLI): **source** = the ECR image with
