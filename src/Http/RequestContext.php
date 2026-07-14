@@ -37,6 +37,35 @@ final class RequestContext
     ) {}
 
     /**
+     * Resolve the Authorization header from $_SERVER, falling back to the
+     * SAPI's raw request headers.
+     *
+     * Apache with mod_php withholds Authorization from the CGI-style
+     * $_SERVER variables (a CGI-era security behavior), while
+     * getallheaders() still exposes it. Without the fallback, challenge and
+     * license-token verification silently fail closed on vanilla Apache —
+     * every bearer looks absent.
+     *
+     * @param array<string, mixed> $server Typically $_SERVER
+     * @param array<string, mixed> $requestHeaders Raw request headers as reported by getallheaders()
+     */
+    public static function resolveAuthorizationHeader(array $server, array $requestHeaders): ?string
+    {
+        $auth = $server['HTTP_AUTHORIZATION'] ?? $server['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
+        if (is_string($auth) && $auth !== '') {
+            return $auth;
+        }
+
+        foreach ($requestHeaders as $name => $value) {
+            if (strcasecmp((string) $name, 'Authorization') === 0 && is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Build a RequestContext from PHP's $_SERVER superglobal.
      */
     public static function fromGlobals(): self
@@ -46,10 +75,10 @@ final class RequestContext
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
         $url = "{$scheme}://{$host}{$uri}";
 
-        // PHP strips the Authorization header in some setups; check multiple sources
-        $authorization = $_SERVER['HTTP_AUTHORIZATION']
-            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
-            ?? null;
+        $authorization = self::resolveAuthorizationHeader(
+            $_SERVER,
+            function_exists('getallheaders') ? getallheaders() : [],
+        );
 
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
         $accept = $_SERVER['HTTP_ACCEPT'] ?? null;

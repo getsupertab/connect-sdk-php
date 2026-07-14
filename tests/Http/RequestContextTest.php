@@ -64,6 +64,56 @@ final class RequestContextTest extends TestCase
         }
     }
 
+    public function test_resolve_authorization_prefers_server_http_authorization(): void
+    {
+        $auth = RequestContext::resolveAuthorizationHeader(
+            ['HTTP_AUTHORIZATION' => 'Bearer from-server'],
+            ['Authorization' => 'Bearer from-headers'],
+        );
+
+        $this->assertSame('Bearer from-server', $auth);
+    }
+
+    public function test_resolve_authorization_falls_back_to_redirect_http_authorization(): void
+    {
+        $auth = RequestContext::resolveAuthorizationHeader(
+            ['REDIRECT_HTTP_AUTHORIZATION' => 'Bearer from-redirect'],
+            [],
+        );
+
+        $this->assertSame('Bearer from-redirect', $auth);
+    }
+
+    public function test_resolve_authorization_falls_back_to_request_headers(): void
+    {
+        // Apache mod_php withholds Authorization from $_SERVER entirely;
+        // the raw request headers (getallheaders()) are the only source.
+        $auth = RequestContext::resolveAuthorizationHeader(
+            ['HTTP_HOST' => 'example.com'],
+            ['Authorization' => 'Bearer from-headers'],
+        );
+
+        $this->assertSame('Bearer from-headers', $auth);
+    }
+
+    public function test_resolve_authorization_matches_header_name_case_insensitively(): void
+    {
+        $auth = RequestContext::resolveAuthorizationHeader(
+            [],
+            ['authorization' => 'License from-lowercase'],
+        );
+
+        $this->assertSame('License from-lowercase', $auth);
+    }
+
+    public function test_resolve_authorization_returns_null_when_absent_everywhere(): void
+    {
+        $this->assertNull(RequestContext::resolveAuthorizationHeader(
+            ['HTTP_HOST' => 'example.com'],
+            ['User-Agent' => 'curl'],
+        ));
+    }
+
     public function test_from_globals_leaves_injection_only_signals_null(): void
     {
         $original = $_SERVER;
