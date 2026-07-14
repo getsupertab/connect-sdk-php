@@ -20,11 +20,11 @@ use Supertab\Connect\Result\AllowResult;
 use Supertab\Connect\SupertabConnect;
 
 // ── Proxy scheme fix-up ──────────────────────────────────────────────
-// App Runner terminates TLS and forwards plain HTTP with
-// X-Forwarded-Proto: https. Fix $_SERVER before anything derives the
-// request origin — otherwise the SDK sees http://…, the backend-minted
-// challenge audience (https://…) never matches, and every status probe
-// gets the 404 decoy.
+// TLS-terminating proxies (Fly.io, App Runner, most PaaS) forward plain
+// HTTP with X-Forwarded-Proto: https. Fix $_SERVER before anything
+// derives the request origin — otherwise the SDK sees http://…, the
+// backend-minted challenge audience (https://…) never matches, and every
+// status probe gets the 404 decoy.
 if (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') {
     $_SERVER['HTTPS'] = 'on';
 }
@@ -49,7 +49,7 @@ if ($apiKey === '') {
 
 $baseUrl = getenv('SUPERTAB_BASE_URL') ?: 'https://api-connect.sbx.supertab.co';
 $enforcement = EnforcementMode::tryFrom(getenv('SUPERTAB_ENFORCEMENT') ?: '') ?? EnforcementMode::OBSERVE;
-$analytics = ! in_array(getenv('SUPERTAB_ANALYTICS'), ['0', 'false', 'off'], true);
+$analytics = ! in_array(strtolower((string) getenv('SUPERTAB_ANALYTICS')), ['0', 'false', 'off'], true);
 
 $connect = new SupertabConnect(
     apiKey: $apiKey,
