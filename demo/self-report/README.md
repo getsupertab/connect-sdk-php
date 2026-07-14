@@ -37,16 +37,16 @@ curl -s localhost:8080/ | head -3                             # → demo HTML pa
 
 ## Deploy
 
-See [DEPLOY.md](DEPLOY.md) — the site runs on Fly.io
-(https://supertab-self-report-demo.fly.dev), one always-warm machine,
-`fly.toml` committed here.
+See [DEPLOY.md](DEPLOY.md) — the site runs on Fly.io as one always-warm
+machine (`fly.toml.example` committed here; the live hostname is kept out
+of the repo — see the sandbox merchant-site registration).
 
 ## Register the site (required for probes)
 
 The backend only mints status challenges (`aud` = origin) for origins it
-knows. Register the service URL — `https://supertab-self-report-demo.fly.dev`
-— as a merchant website in **sandbox**. If the URL changes (app
-recreated), re-register.
+knows. Register the service URL — `https://<your-app>.fly.dev` — as a
+merchant website in **sandbox**. If the URL changes (app recreated),
+re-register.
 
 ## Probe flow
 

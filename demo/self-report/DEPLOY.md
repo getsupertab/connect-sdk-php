@@ -1,10 +1,11 @@
 # Deploying the Self-Report Demo Site (Fly.io)
 
-The live instance runs at **https://supertab-self-report-demo.fly.dev** —
-one always-warm 256 MB machine (~$2–3/mo), TLS automatic, remote builds
-(no local arch concerns). `fly.toml` in this directory is the canonical
-config; it pins `auto_stop_machines = 'off'` / `min_machines_running = 1`
-because a probe target must never cold-start.
+The live instance is one always-warm 256 MB machine (~$2–3/mo), TLS
+automatic, remote builds (no local arch concerns). Its hostname is
+deliberately kept out of this public repo — find it in the sandbox
+merchant-site registration (or ask the team). `fly.toml.example` is the
+canonical config template; it pins `auto_stop_machines = 'off'` /
+`min_machines_running = 1` because a probe target must never cold-start.
 
 > An AWS App Runner variant of this runbook existed previously; it was
 > dropped after IAM friction (`iam:PassRole`) — see git history if ever
@@ -17,7 +18,8 @@ brew install flyctl
 flyctl auth login                      # browser flow (signup included)
 
 cd demo/self-report
-flyctl apps create supertab-self-report-demo
+cp fly.toml.example fly.toml           # fly.toml is gitignored — app name stays local
+flyctl apps create <your-app>          # then set the same name in fly.toml
 flyctl secrets set SUPERTAB_MERCHANT_API_KEY=placeholder SUPERTAB_ENFORCEMENT=observe --stage
 flyctl deploy --ha=false               # single machine; fly.toml does the rest
 ```
@@ -31,7 +33,7 @@ analytics delivery would 401-and-drop.
 ## Smoke test
 
 ```bash
-HOST=supertab-self-report-demo.fly.dev
+HOST=<your-app>.fly.dev
 curl -s  https://$HOST/healthz                                  # → ok
 curl -si https://$HOST/.well-known/supertab/status | head -5    # → 404 {"supertab":true}, no-store
 curl -s  https://$HOST/ | grep "SDK version"                    # → the pinned SDK version
@@ -39,7 +41,7 @@ curl -s  https://$HOST/ | grep "SDK version"                    # → the pinned
 
 ## Register the site in sandbox and set the real key (required)
 
-1. Register `https://supertab-self-report-demo.fly.dev` as a merchant
+1. Register `https://<your-app>.fly.dev` as a merchant
    website in the **sandbox** environment — registration issues the
    merchant API key. The backend only mints status challenges with `aud` =
    a registered origin; unregistered probes silently get the decoy.
@@ -77,4 +79,4 @@ SUPERTAB_ENFORCEMENT=enforce` (or `SUPERTAB_ANALYTICS=0`,
 the new values.
 
 **Ops one-liners**: `flyctl status` (machine state), `flyctl logs`
-(live tail), `flyctl apps destroy supertab-self-report-demo` (teardown).
+(live tail), `flyctl apps destroy <your-app>` (teardown).

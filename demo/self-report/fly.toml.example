@@ -1,8 +1,11 @@
-# Fly.io config for the self-report demo site (see DEPLOY.md).
+# Fly.io config template for the self-report demo site (see DEPLOY.md).
+# Copy to fly.toml and set your app name (the real deployment's name/URL
+# is deliberately kept out of the repo):
+#   cp fly.toml.example fly.toml && fly apps create <your-app>
 # Always-warm single machine: this is a probe target — it must never
 # scale to zero or backend status probes would hit cold starts.
 
-app = 'supertab-self-report-demo'
+app = 'REPLACE-WITH-YOUR-APP-NAME'
 primary_region = 'fra'
 
 [build]
