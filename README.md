@@ -145,7 +145,7 @@ Creates a singleton instance. Returns the existing instance if one already exist
 | `botDetector` | `?BotDetectorInterface` | No | `null` | Inject a custom bot detector (defaults to `DefaultBotDetector`) |
 | `analyticsEnabled` | `bool` | No | `false` | Emit one relay analytics event per request to `{analyticsBaseUrl}/ingest/events` (see [Analytics](#analytics)) |
 | `analyticsTransport` | `?AnalyticsTransportInterface` | No | `null` | Route analytics through a custom delivery path (e.g. a job queue). Used as-is when provided — bypasses the default deferred HTTP transport (see [Delivery](#delivery)) |
-| `analyticsBaseUrl` | `?string` | No | `https://ingest-connect.supertab.co` | Base URL of the analytics ingest service. Independent of `baseUrl`/`setBaseUrl()` (token/JWKS/verify). Also settable globally via `setAnalyticsBaseUrl()`; the per-instance option wins |
+| `analyticsBaseUrl` | `?string` | No | `null` | Base URL of the analytics ingest service (resolves to `https://ingest-connect.supertab.co` by default). Independent of `baseUrl`/`setBaseUrl()` (token/JWKS/verify). Also settable globally via `setAnalyticsBaseUrl()`; the per-instance option wins |
 
 ### `handleRequest(?RequestContext $context): HandlerResult`
 

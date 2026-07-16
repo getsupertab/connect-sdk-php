@@ -24,14 +24,22 @@ final class SupertabConnectAnalyticsBaseUrlTest extends TestCase
     {
         SupertabConnect::resetInstance();
         SupertabConnect::setBaseUrl('https://api-connect.supertab.co');
-        SupertabConnect::setAnalyticsBaseUrl(self::DEFAULT_INGEST);
+        // Reset to the class's declared default (not the DEFAULT_INGEST constant),
+        // so the defaults test genuinely exercises the declared value and a changed
+        // default fails against the constant instead of being masked by setUp.
+        SupertabConnect::setAnalyticsBaseUrl($this->declaredDefaultAnalyticsBaseUrl());
     }
 
     protected function tearDown(): void
     {
         SupertabConnect::resetInstance();
         SupertabConnect::setBaseUrl('https://api-connect.supertab.co');
-        SupertabConnect::setAnalyticsBaseUrl(self::DEFAULT_INGEST);
+        SupertabConnect::setAnalyticsBaseUrl($this->declaredDefaultAnalyticsBaseUrl());
+    }
+
+    private function declaredDefaultAnalyticsBaseUrl(): string
+    {
+        return (new ReflectionProperty(SupertabConnect::class, 'analyticsBaseUrl'))->getDefaultValue();
     }
 
     /**
