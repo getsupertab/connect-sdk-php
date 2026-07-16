@@ -40,6 +40,14 @@ final class SupertabConnect
 
     private static string $baseUrl = 'https://api-connect.supertab.co';
 
+    /**
+     * Analytics is served by the dedicated ingest service, not the API host.
+     * Kept as a separate static (mirroring $baseUrl/setBaseUrl) so the relay
+     * can be pointed at a different host — or at localhost in dev — without
+     * moving token/JWKS/verify traffic.
+     */
+    private static string $analyticsBaseUrl = 'https://ingest-connect.supertab.co';
+
     private static ?self $instance = null;
 
     private readonly LicenseTokenVerifier $verifier;
@@ -70,6 +78,7 @@ final class SupertabConnect
         ?CacheInterface $cache = null,
         bool $analyticsEnabled = false,
         ?AnalyticsTransportInterface $analyticsTransport = null,
+        ?string $analyticsBaseUrl = null,
     ) {
         if ($this->apiKey === '') {
             throw new \InvalidArgumentException('Missing required configuration: apiKey is required');
@@ -104,7 +113,12 @@ final class SupertabConnect
         $this->eventRecorder = new EventRecorder($this->apiKey, self::$baseUrl, $client, $this->debug);
         $this->botDetector = $botDetector ?? null;
         $this->analyticsEventFactory = new AnalyticsEventFactory;
-        $this->analyticsTransport = $this->buildAnalyticsTransport($analyticsTransport, $analyticsEnabled, $httpClient);
+        $this->analyticsTransport = $this->buildAnalyticsTransport(
+            $analyticsTransport,
+            $analyticsEnabled,
+            $httpClient,
+            $analyticsBaseUrl !== null ? rtrim($analyticsBaseUrl, '/') : self::$analyticsBaseUrl,
+        );
 
         self::$instance = $this;
     }
@@ -134,6 +148,7 @@ final class SupertabConnect
         ?AnalyticsTransportInterface $injected,
         bool $analyticsEnabled,
         ?HttpClientInterface $httpClient,
+        string $analyticsBaseUrl,
     ): AnalyticsTransportInterface {
         if ($injected !== null) {
             return $injected;
@@ -152,7 +167,7 @@ final class SupertabConnect
         return new DeferredAnalyticsTransport(
             new HttpAnalyticsTransport(
                 $this->apiKey,
-                self::$baseUrl,
+                $analyticsBaseUrl,
                 $httpClient ?? new HttpClient(self::ANALYTICS_TIMEOUT_SECONDS),
                 $this->debug,
             ),
@@ -200,6 +215,25 @@ final class SupertabConnect
     public static function getBaseUrl(): string
     {
         return self::$baseUrl;
+    }
+
+    /**
+     * Override the base URL of the analytics ingest relay (e.g. for a non-prod
+     * environment or local development). Independent of setBaseUrl —
+     * token/JWKS/verify traffic is unaffected. Can also be set per-instance via
+     * the `analyticsBaseUrl` constructor option, which takes precedence.
+     */
+    public static function setAnalyticsBaseUrl(string $url): void
+    {
+        self::$analyticsBaseUrl = rtrim($url, '/');
+    }
+
+    /**
+     * Get the current base URL of the analytics ingest relay.
+     */
+    public static function getAnalyticsBaseUrl(): string
+    {
+        return self::$analyticsBaseUrl;
     }
 
     /**

@@ -84,7 +84,7 @@ Default is `OBSERVE`.
 
 ## Analytics
 
-When enabled, the SDK emits **one analytics event per request** to the Supertab Connect relay at `{baseUrl}/ingest/events`, carrying bot-classification signals (user agent, client IP, request metadata, and the verification/enforcement decision). It is **off by default** — enable it with `analyticsEnabled: true`:
+When enabled, the SDK emits **one analytics event per request** to the Supertab Connect relay at `{analyticsBaseUrl}/ingest/events` — defaulting to the dedicated ingest service (`https://ingest-connect.supertab.co`) — carrying bot-classification signals (user agent, client IP, request metadata, and the verification/enforcement decision). It is **off by default** — enable it with `analyticsEnabled: true`:
 
 ```php
 $connect = new SupertabConnect(
@@ -95,6 +95,7 @@ $connect = new SupertabConnect(
 
 - **Fail-open.** Emission never throws or alters request handling; errors are swallowed and the relay POST uses a short timeout.
 - **Isolated from billing.** Analytics goes only to `/ingest/events`; the billing `/events` path is untouched.
+- **Independent of `setBaseUrl`.** The analytics host defaults to the ingest service and is separate from the API base URL (token/JWKS/verify). Point it at another environment (or localhost) with `setAnalyticsBaseUrl()`, or per-instance via the `analyticsBaseUrl` constructor option.
 
 Events are emitted with `schema_version: 2` (Capture v2), adding spoof-detection signals read from the request: `Sec-Fetch-*` and client hints (`Sec-CH-UA*`), `accept`, `host`, cookie presence, and the stripped/sorted `header_names` set, plus query-shape signals (`query_length`, `query_param_count`, `query_suspicious`). The raw query string is never stored. CDN-only transport signals (TLS version/cipher, JA4, verified-bot category, AS organization, …) are emitted as `null` at a PHP origin unless injected explicitly via `RequestContext`'s `cdnSignals` (see below).
 
@@ -121,7 +122,7 @@ $connect = new SupertabConnect(
 
 // The scheduled job runs in a cron/loopback worker; the POST is plain synchronous there.
 add_action('supertab_connect_emit_analytics', function (array $payload) use ($apiKey) {
-    (new HttpAnalyticsTransport($apiKey, SupertabConnect::getBaseUrl(), new HttpClient))
+    (new HttpAnalyticsTransport($apiKey, SupertabConnect::getAnalyticsBaseUrl(), new HttpClient))
         ->emit(AnalyticsEvent::fromArray($payload));
 });
 ```
@@ -142,8 +143,9 @@ Creates a singleton instance. Returns the existing instance if one already exist
 | `baseUrl` | `?string` | No | `null` | Set the global default base URL (same as `setBaseUrl()`) |
 | `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client (defaults to built-in cURL client) |
 | `botDetector` | `?BotDetectorInterface` | No | `null` | Inject a custom bot detector (defaults to `DefaultBotDetector`) |
-| `analyticsEnabled` | `bool` | No | `false` | Emit one relay analytics event per request to `{baseUrl}/ingest/events` (see [Analytics](#analytics)) |
+| `analyticsEnabled` | `bool` | No | `false` | Emit one relay analytics event per request to `{analyticsBaseUrl}/ingest/events` (see [Analytics](#analytics)) |
 | `analyticsTransport` | `?AnalyticsTransportInterface` | No | `null` | Route analytics through a custom delivery path (e.g. a job queue). Used as-is when provided — bypasses the default deferred HTTP transport (see [Delivery](#delivery)) |
+| `analyticsBaseUrl` | `?string` | No | `null` | Base URL of the analytics ingest service (resolves to `https://ingest-connect.supertab.co` by default). Independent of `baseUrl`/`setBaseUrl()` (token/JWKS/verify). Also settable globally via `setAnalyticsBaseUrl()`; the per-instance option wins |
 
 ### `handleRequest(?RequestContext $context): HandlerResult`
 
@@ -304,6 +306,18 @@ SupertabConnect::setBaseUrl('https://api-connect.sbx.supertab.co');
 ### `SupertabConnect::getBaseUrl()` (static)
 
 Returns the current global default base URL.
+
+### `SupertabConnect::setAnalyticsBaseUrl()` (static)
+
+Sets the global base URL of the analytics ingest relay (default `https://ingest-connect.supertab.co`). Independent of `setBaseUrl()` — token/JWKS/verify traffic is unaffected.
+
+```php
+SupertabConnect::setAnalyticsBaseUrl('https://ingest-connect.sbx.supertab.co');
+```
+
+### `SupertabConnect::getAnalyticsBaseUrl()` (static)
+
+Returns the current base URL of the analytics ingest relay.
 
 ### `SupertabConnect::resetInstance()` (static)
 
