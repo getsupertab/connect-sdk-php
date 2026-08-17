@@ -285,15 +285,26 @@ Obtains a license token for accessing a protected resource using the OAuth2 `cli
 | `resourceUrl` | `string` | Yes | — | Full URL of the protected resource |
 | `debug` | `bool` | No | `false` | Emit debug logs |
 | `httpClient` | `?HttpClientInterface` | No | `null` | Inject a custom HTTP client |
+| `baseUrl` | `?string` | No | `null` | Per-call Supertab API host override (defaults to `getBaseUrl()`) |
 
 **Returns:** `string` (the access token). Throws `SupertabConnectException` on failure.
 
-The SDK handles the full RSL flow automatically:
+The SDK handles the full flow automatically:
 
 1. Fetches `{origin}/license.xml` from the resource URL
-2. Parses content blocks and finds the best matching URL pattern (exact > path pattern > wildcard by specificity)
-3. POSTs to the token endpoint using OAuth2 `client_credentials`
-4. Caches the token in memory (keyed by `clientId:resourceUrl`, reused until 30s before expiry)
+2. Parses content blocks and picks where to mint, on one of two lanes:
+   - **RSL License lane** — a `<content>` block path-matches the resource
+     (exact > path pattern > wildcard by specificity; matches hosted on the
+     Supertab API host are preferred over other providers). The block's
+     `<license>` chunk is sent to that block's own `{server}/token`.
+   - **Agreement lane** — nothing matches, so the request goes license-less to
+     the generic `{baseUrl}/token`, where the backend resolves the merchant
+     system from the resource URL and the customer's single Active Agreement.
+3. POSTs to the token endpoint using OAuth2 `client_credentials`, with
+   `resource` carrying the raw resource URL
+4. Caches the token in memory (keyed by client ID, token server and scope —
+   the block's URL pattern on the matched lane, the resource origin on the
+   Agreement lane — reused until 30s before expiry)
 
 ### `SupertabConnect::setBaseUrl()` (static)
 

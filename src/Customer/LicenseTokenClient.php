@@ -103,17 +103,22 @@ final class LicenseTokenClient
      *
      * A path-matching server-bearing <content> block gives the RSL License
      * lane: mint against that block's URN-scoped server with its <license>
-     * chunk. Anything else falls through to the Agreement lane, where the
-     * backend resolves the merchant system from the resource URL and the
-     * customer's single Active Agreement, so a diverged license.xml cannot
-     * veto the mint.
+     * chunk. Matches hosted on the configured Supertab API host are preferred
+     * over matches from other providers, so a multi-provider license.xml never
+     * routes credentials to a third party when a Supertab block also matches.
+     * Anything else falls through to the Agreement lane, where the backend
+     * resolves the merchant system from the resource URL and the customer's
+     * single Active Agreement, so a diverged license.xml cannot veto the mint.
      *
      * @param  list<ContentBlock>  $contentBlocks
      */
     private function selectTokenEndpoint(array $contentBlocks, string $resourceUrl, string $origin): TokenEndpoint
     {
         $serverBlocks = array_values(array_filter($contentBlocks, fn (ContentBlock $b) => $b->server !== null));
-        $matched = ContentMatcher::findBestMatch($serverBlocks, $resourceUrl, $this->debug);
+        $supertabBlocks = array_values(array_filter($serverBlocks, fn (ContentBlock $b) => $this->isSupertabServer($b->server)));
+
+        $matched = ContentMatcher::findBestMatch($supertabBlocks, $resourceUrl, $this->debug)
+            ?? ContentMatcher::findBestMatch($serverBlocks, $resourceUrl, $this->debug);
 
         if ($matched !== null && $matched->server !== null) {
             if ($this->debug) {
@@ -140,7 +145,23 @@ final class LicenseTokenClient
     }
 
     /**
-     * Derive the origin (scheme://host[:port]) from the resource URL.
+     * True when the server's host matches the configured Supertab API base host.
+     */
+    private function isSupertabServer(?string $server): bool
+    {
+        if ($server === null) {
+            return false;
+        }
+
+        $serverHost = self::canonicalHost($server);
+
+        return $serverHost !== null && $serverHost === self::canonicalHost($this->supertabBaseUrl);
+    }
+
+    /**
+     * Derive the canonical origin (scheme://host[:port], lowercased, default
+     * port stripped) from the resource URL, mirroring the WHATWG URL origin
+     * the TypeScript SDK uses.
      *
      * @throws SupertabConnectException when the URL has no origin
      */
@@ -151,12 +172,38 @@ final class LicenseTokenClient
             throw new SupertabConnectException("Invalid resource URL: {$resourceUrl}");
         }
 
-        $origin = $parsed['scheme'] . '://' . $parsed['host'];
-        if (isset($parsed['port'])) {
+        $scheme = strtolower($parsed['scheme']);
+        $origin = $scheme . '://' . strtolower($parsed['host']);
+        if (isset($parsed['port']) && ! self::isDefaultPort($scheme, $parsed['port'])) {
             $origin .= ':' . $parsed['port'];
         }
 
         return $origin;
+    }
+
+    /**
+     * The host (host[:port], lowercased, default port stripped) of a URL, or
+     * null when the URL has none. Mirrors the WHATWG URL host.
+     */
+    private static function canonicalHost(string $url): ?string
+    {
+        $parsed = parse_url($url);
+        if ($parsed === false || ! isset($parsed['host'])) {
+            return null;
+        }
+
+        $scheme = isset($parsed['scheme']) ? strtolower($parsed['scheme']) : '';
+        $host = strtolower($parsed['host']);
+        if (isset($parsed['port']) && ! self::isDefaultPort($scheme, $parsed['port'])) {
+            $host .= ':' . $parsed['port'];
+        }
+
+        return $host;
+    }
+
+    private static function isDefaultPort(string $scheme, int $port): bool
+    {
+        return ($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80);
     }
 
     /**
