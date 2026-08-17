@@ -91,7 +91,7 @@ XML;
         $this->assertCount(0, $blocks);
     }
 
-    public function test_skips_content_missing_server_attribute(): void
+    public function test_keeps_content_missing_server_attribute_with_null_server(): void
     {
         $xml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -104,7 +104,9 @@ XML;
 
         $blocks = LicenseXmlParser::parseContentElements($xml);
 
-        $this->assertCount(0, $blocks);
+        $this->assertCount(1, $blocks);
+        $this->assertSame('http://example.com/*', $blocks[0]->urlPattern);
+        $this->assertNull($blocks[0]->server);
     }
 
     public function test_returns_empty_array_for_no_content_elements(): void

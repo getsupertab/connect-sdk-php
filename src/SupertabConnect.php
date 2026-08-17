@@ -329,8 +329,17 @@ final class SupertabConnect
     /**
      * Obtain a license token for accessing a protected resource.
      *
-     * Uses the OAuth2 client_credentials flow via the resource's license.xml.
-     * Does not require a SupertabConnect instance.
+     * Uses the OAuth2 client_credentials flow via the resource's license.xml,
+     * on one of two lanes:
+     *  - RSL License lane: a <content> block path-matches the resource, so the
+     *    <license> chunk goes to that block's own URN-scoped {server}/token.
+     *  - Agreement lane: nothing matches, so the chunk is omitted and the
+     *    request goes license-less to the generic {baseUrl}/token, where the
+     *    backend resolves the merchant system from the resource URL and the
+     *    customer's single Active Agreement.
+     *
+     * Does not require a SupertabConnect instance. $baseUrl overrides the
+     * Supertab API base for this call only; it defaults to getBaseUrl().
      *
      * @throws SupertabConnectException on any failure
      */
@@ -340,10 +349,12 @@ final class SupertabConnect
         string $resourceUrl,
         bool $debug = false,
         ?HttpClientInterface $httpClient = null,
+        ?string $baseUrl = null,
     ): string {
         $client = new LicenseTokenClient(
             httpClient: $httpClient ?? new HttpClient,
             debug: $debug,
+            supertabBaseUrl: $baseUrl ?? self::$baseUrl,
         );
 
         return $client->obtainLicenseToken($clientId, $clientSecret, $resourceUrl);

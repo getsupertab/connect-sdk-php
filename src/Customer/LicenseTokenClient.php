@@ -9,20 +9,33 @@ use Supertab\Connect\Http\HttpClientInterface;
 
 final class LicenseTokenClient
 {
+    private const DEFAULT_SUPERTAB_BASE_URL = 'https://api-connect.supertab.co';
+
     private readonly TokenCache $cache;
+
+    private readonly string $supertabBaseUrl;
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly bool $debug = false,
         ?TokenCache $cache = null,
+        string $supertabBaseUrl = self::DEFAULT_SUPERTAB_BASE_URL,
     ) {
         $this->cache = $cache ?? new TokenCache;
+        $this->supertabBaseUrl = rtrim($supertabBaseUrl, '/');
     }
 
     /**
      * Obtain a license token for accessing a protected resource.
      *
-     * Uses the OAuth2 client_credentials flow via the resource's license.xml.
+     * Uses the OAuth2 client_credentials flow via the resource's license.xml,
+     * on one of two lanes:
+     *  - RSL License lane: a <content> block path-matches the resource, so the
+     *    <license> chunk goes to that block's own URN-scoped {server}/token.
+     *  - Agreement lane: nothing matches, so the chunk is omitted and the
+     *    request goes license-less to the generic {supertabBaseUrl}/token,
+     *    where the backend resolves the merchant system from the resource URL
+     *    and the customer's single Active Agreement.
      *
      * @throws SupertabConnectException on any failure
      */
@@ -31,21 +44,15 @@ final class LicenseTokenClient
         string $clientSecret,
         string $resourceUrl,
     ): string {
-        // 1. Check cache
-        $cacheKey = "{$clientId}:{$resourceUrl}";
-        $cached = $this->cache->get($cacheKey, $this->debug);
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        // 2. Fetch license.xml
-        $xml = $this->fetchLicenseXml($resourceUrl);
+        // 1. Fetch license.xml from the resource's origin
+        $origin = $this->buildOrigin($resourceUrl);
+        $xml = $this->fetchLicenseXml($origin);
 
         if ($this->debug) {
             error_log('[SupertabConnect] Fetched license.xml (' . strlen($xml) . ' chars)');
         }
 
-        // 3. Parse and match
+        // 2. Parse and resolve the token endpoint
         $contentBlocks = LicenseXmlParser::parseContentElements($xml, $this->debug);
 
         if ($contentBlocks === []) {
@@ -58,26 +65,19 @@ final class LicenseTokenClient
             );
         }
 
-        $matchedContent = ContentMatcher::findBestMatch($contentBlocks, $resourceUrl, $this->debug);
+        $endpoint = $this->selectTokenEndpoint($contentBlocks, $resourceUrl, $origin);
 
-        if ($matchedContent === null) {
-            if ($this->debug) {
-                $patterns = implode(', ', array_map(fn (ContentBlock $b) => $b->urlPattern, $contentBlocks));
-                error_log("[SupertabConnect] No <content> element matches resource URL: {$resourceUrl}. Available patterns: {$patterns}");
-            }
-
-            throw new SupertabConnectException(
-                "No <content> element in license.xml matches resource URL: {$resourceUrl}"
-            );
-        }
-
-        if ($this->debug) {
-            error_log("[SupertabConnect] Matched content block for resource URL: {$resourceUrl}");
-            error_log("[SupertabConnect] Using license XML: {$matchedContent->licenseXml}");
+        // 3. Check cache. Keyed by server + scope: on the matched lane scope is
+        // the block's urlPattern (token reuse across sibling paths); on the
+        // Agreement lane scope is the origin (one Agreement token per origin).
+        $cacheKey = "{$clientId}:{$endpoint->server}:{$endpoint->scope}";
+        $cached = $this->cache->get($cacheKey, $this->debug);
+        if ($cached !== null) {
+            return $cached;
         }
 
         // 4. Request token
-        $tokenEndpoint = rtrim($matchedContent->server, '/') . '/token';
+        $tokenEndpoint = rtrim($endpoint->server, '/') . '/token';
 
         if ($this->debug) {
             error_log("[SupertabConnect] Requesting license token from {$tokenEndpoint}");
@@ -87,8 +87,8 @@ final class LicenseTokenClient
             $tokenEndpoint,
             $clientId,
             $clientSecret,
-            $matchedContent->licenseXml,
-            $matchedContent->urlPattern,
+            $endpoint->licenseXml,
+            $resourceUrl,
         );
 
         // 5. Cache token
@@ -98,11 +98,53 @@ final class LicenseTokenClient
     }
 
     /**
-     * Fetch license.xml from the resource URL's origin.
+     * Resolve where to mint, decoupled from whether the live license.xml still
+     * grants the resource.
      *
-     * @throws SupertabConnectException
+     * A path-matching server-bearing <content> block gives the RSL License
+     * lane: mint against that block's URN-scoped server with its <license>
+     * chunk. Anything else falls through to the Agreement lane, where the
+     * backend resolves the merchant system from the resource URL and the
+     * customer's single Active Agreement, so a diverged license.xml cannot
+     * veto the mint.
+     *
+     * @param  list<ContentBlock>  $contentBlocks
      */
-    private function fetchLicenseXml(string $resourceUrl): string
+    private function selectTokenEndpoint(array $contentBlocks, string $resourceUrl, string $origin): TokenEndpoint
+    {
+        $serverBlocks = array_values(array_filter($contentBlocks, fn (ContentBlock $b) => $b->server !== null));
+        $matched = ContentMatcher::findBestMatch($serverBlocks, $resourceUrl, $this->debug);
+
+        if ($matched !== null && $matched->server !== null) {
+            if ($this->debug) {
+                error_log("[SupertabConnect] Matched content block for resource URL: {$resourceUrl}");
+            }
+
+            return new TokenEndpoint(
+                server: $matched->server,
+                scope: $matched->urlPattern,
+                matched: true,
+                licenseXml: $matched->licenseXml,
+            );
+        }
+
+        if ($this->debug) {
+            $patterns = implode(', ', array_map(fn (ContentBlock $b) => $b->urlPattern, $serverBlocks));
+            error_log(
+                "[SupertabConnect] No <content> element matches resource URL: {$resourceUrl} (patterns: {$patterns}). "
+                . "Minting license-less against {$this->supertabBaseUrl}; the backend resolves the Agreement."
+            );
+        }
+
+        return new TokenEndpoint(server: $this->supertabBaseUrl, scope: $origin, matched: false);
+    }
+
+    /**
+     * Derive the origin (scheme://host[:port]) from the resource URL.
+     *
+     * @throws SupertabConnectException when the URL has no origin
+     */
+    private function buildOrigin(string $resourceUrl): string
     {
         $parsed = parse_url($resourceUrl);
         if ($parsed === false || ! isset($parsed['scheme'], $parsed['host'])) {
@@ -114,6 +156,16 @@ final class LicenseTokenClient
             $origin .= ':' . $parsed['port'];
         }
 
+        return $origin;
+    }
+
+    /**
+     * Fetch license.xml from the given origin.
+     *
+     * @throws SupertabConnectException
+     */
+    private function fetchLicenseXml(string $origin): string
+    {
         $licenseXmlUrl = $origin . '/license.xml';
 
         try {
@@ -152,14 +204,22 @@ final class LicenseTokenClient
         string $tokenEndpoint,
         string $clientId,
         string $clientSecret,
-        string $licenseXml,
+        ?string $licenseXml,
         string $resource,
     ): string {
-        $body = http_build_query([
+        $params = [
             'grant_type' => 'client_credentials',
-            'license' => $licenseXml,
             'resource' => $resource,
-        ]);
+        ];
+
+        // Only send the live <license> chunk when a public <content> block
+        // actually matched; on the Agreement lane the backend mints from the
+        // Agreement's pinned snapshot instead.
+        if ($licenseXml !== null) {
+            $params['license'] = $licenseXml;
+        }
+
+        $body = http_build_query($params);
 
         $headers = [
             'Content-Type' => 'application/x-www-form-urlencoded',

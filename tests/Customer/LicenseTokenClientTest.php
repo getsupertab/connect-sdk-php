@@ -39,6 +39,24 @@ XML;
 </rsl>
 XML;
 
+    private const NON_MATCHING_XML = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="http://other-host.com/*" server="http://token.other.com">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+
+    private const SERVERLESS_XML = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="http://127.0.0.1:7676/*">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+
     public function test_obtains_token_successfully(): void
     {
         $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
@@ -60,8 +78,9 @@ XML;
         $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
 
         $httpClient = $this->createMock(HttpClientInterface::class);
-        // GET for license.xml should be called exactly once
-        $httpClient->expects($this->once())
+        // license.xml is fetched per call (the cache key needs the resolved
+        // lane), but the token itself is minted exactly once
+        $httpClient->expects($this->exactly(2))
             ->method('get')
             ->willReturn(['statusCode' => 200, 'body' => self::LICENSE_XML]);
         $httpClient->expects($this->once())
@@ -107,27 +126,203 @@ XML;
         $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
     }
 
-    public function test_throws_when_no_matching_content(): void
+    public function test_mints_license_less_when_no_content_matches(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::NON_MATCHING_XML]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $token = $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
+
+        $this->assertSame($fakeToken, $token);
+        $this->assertCount(1, $posts);
+        $this->assertSame('https://api-connect.supertab.co/token', $posts[0]['url']);
+
+        parse_str($posts[0]['body'], $params);
+        $this->assertSame('client_credentials', $params['grant_type']);
+        $this->assertSame(self::RESOURCE_URL, $params['resource']);
+        $this->assertArrayNotHasKey('license', $params);
+    }
+
+    public function test_agreement_lane_uses_configured_base_url(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::NON_MATCHING_XML]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient, supertabBaseUrl: 'http://api-connect.test/');
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
+
+        $this->assertCount(1, $posts);
+        $this->assertSame('http://api-connect.test/token', $posts[0]['url']);
+    }
+
+    public function test_mints_license_less_when_no_content_block_has_server(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::SERVERLESS_XML]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $token = $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
+
+        $this->assertSame($fakeToken, $token);
+        $this->assertCount(1, $posts);
+        $this->assertSame('https://api-connect.supertab.co/token', $posts[0]['url']);
+
+        parse_str($posts[0]['body'], $params);
+        $this->assertArrayNotHasKey('license', $params);
+    }
+
+    public function test_shares_agreement_token_across_resources_on_same_origin(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::NON_MATCHING_XML]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://127.0.0.1:7676/article/foo');
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://127.0.0.1:7676/news/bar');
+
+        // Both fall to the Agreement lane (scope = origin): single mint, second call cached.
+        $this->assertCount(1, $posts);
+    }
+
+    public function test_does_not_share_agreement_tokens_across_origins(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::NON_MATCHING_XML]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://site-a.example/article/foo');
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://site-b.example/article/foo');
+
+        // Agreement-lane tokens are scoped per origin: two origins, two mints.
+        $this->assertCount(2, $posts);
+    }
+
+    public function test_reuses_matched_token_across_sibling_paths(): void
+    {
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => self::LICENSE_XML]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://127.0.0.1:7676/article/foo');
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://127.0.0.1:7676/article/bar');
+
+        // Both resources match the same <content> block (scope = its urlPattern): one mint.
+        $this->assertCount(1, $posts);
+    }
+
+    public function test_lanes_use_distinct_cache_keys(): void
     {
         $xml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<rsl>
-  <content url="http://other-host.com/*" server="http://token.other.com">
-    <license type="test"><link rel="self" /></license>
+<rsl xmlns="https://rslstandard.org/rsl">
+  <content url="http://127.0.0.1:7676/article/*" server="http://127.0.0.1:8787">
+    <license type="test">
+      <link rel="self" href="http://127.0.0.1:8787/license" />
+    </license>
   </content>
 </rsl>
 XML;
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
 
         $httpClient = $this->createMock(HttpClientInterface::class);
         $httpClient->method('get')
             ->willReturn(['statusCode' => 200, 'body' => $xml]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://127.0.0.1:7676/article/foo');
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://127.0.0.1:7676/premium/foo');
+
+        // Matched lane and Agreement lane on the same origin mint separately.
+        $this->assertCount(2, $posts);
+        $this->assertSame('http://127.0.0.1:8787/token', $posts[0]['url']);
+        $this->assertSame('https://api-connect.supertab.co/token', $posts[1]['url']);
+
+        parse_str($posts[0]['body'], $matchedParams);
+        parse_str($posts[1]['body'], $agreementParams);
+        $this->assertArrayHasKey('license', $matchedParams);
+        $this->assertArrayNotHasKey('license', $agreementParams);
+    }
+
+    public function test_throws_when_resource_url_has_no_origin(): void
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->expects($this->never())->method('get');
+        $httpClient->expects($this->never())->method('post');
 
         $client = new LicenseTokenClient($httpClient);
 
         $this->expectException(SupertabConnectException::class);
-        $this->expectExceptionMessage('No <content> element in license.xml matches resource URL');
+        $this->expectExceptionMessage('Invalid resource URL');
 
-        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'not-a-url');
     }
 
     public function test_throws_on_token_endpoint_failure(): void
@@ -227,7 +422,7 @@ XML;
         $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
     }
 
-    public function test_uses_url_pattern_as_resource_param(): void
+    public function test_matched_lane_sends_raw_resource_url_and_license_chunk(): void
     {
         $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
 
@@ -237,12 +432,13 @@ XML;
         $httpClient->expects($this->once())
             ->method('post')
             ->with(
-                $this->anything(),
+                $this->equalTo('http://127.0.0.1:8787/token'),
                 $this->callback(function (string $body) {
                     parse_str($body, $params);
 
-                    // Resource should be the URL pattern from license.xml, not the original resource URL
-                    return ($params['resource'] ?? null) === 'http://127.0.0.1:7676/*';
+                    // Resource is the raw resource URL, not the matched urlPattern
+                    return ($params['resource'] ?? null) === self::RESOURCE_URL
+                        && str_contains($params['license'] ?? '', '<license');
                 }),
                 $this->anything(),
             )
@@ -252,7 +448,7 @@ XML;
         $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, self::RESOURCE_URL);
     }
 
-    public function test_uses_path_only_url_pattern_as_resource_param(): void
+    public function test_path_only_matched_lane_sends_raw_resource_url(): void
     {
         $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
 
@@ -266,8 +462,7 @@ XML;
                 $this->callback(function (string $body) {
                     parse_str($body, $params);
 
-                    // Path-only pattern should be sent as-is
-                    return ($params['resource'] ?? null) === '/*';
+                    return ($params['resource'] ?? null) === self::RESOURCE_URL;
                 }),
                 $this->anything(),
             )

@@ -62,6 +62,68 @@ final class SupertabConnectTest extends TestCase
         $this->assertSame('https://custom.example.com', SupertabConnect::getBaseUrl());
     }
 
+    public function test_static_obtain_license_token_defaults_agreement_lane_to_configured_base_url(): void
+    {
+        SupertabConnect::setBaseUrl('http://configured.test');
+        $posts = [];
+
+        SupertabConnect::obtainLicenseToken(
+            clientId: 'client',
+            clientSecret: 'secret',
+            resourceUrl: 'http://127.0.0.1:7676/article/foo',
+            httpClient: $this->createLicenseTokenHttpClient($posts),
+        );
+
+        $this->assertCount(1, $posts);
+        $this->assertSame('http://configured.test/token', $posts[0]['url']);
+    }
+
+    public function test_static_obtain_license_token_accepts_base_url_override(): void
+    {
+        $posts = [];
+
+        SupertabConnect::obtainLicenseToken(
+            clientId: 'client',
+            clientSecret: 'secret',
+            resourceUrl: 'http://127.0.0.1:7676/article/foo',
+            httpClient: $this->createLicenseTokenHttpClient($posts),
+            baseUrl: 'http://override.test/',
+        );
+
+        $this->assertCount(1, $posts);
+        $this->assertSame('http://override.test/token', $posts[0]['url']);
+    }
+
+    /**
+     * HTTP client stub whose license.xml matches nothing, so the mint takes the
+     * Agreement lane; captures every token POST into $posts.
+     *
+     * @param  list<array{url: string, body: string}>  $posts
+     */
+    private function createLicenseTokenHttpClient(array &$posts): HttpClientInterface
+    {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="http://other-host.com/*" server="http://token.other.com">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => $xml]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => 'token'])];
+            });
+
+        return $httpClient;
+    }
+
     public function test_constructor_base_url_sets_base_url(): void
     {
         new SupertabConnect(
