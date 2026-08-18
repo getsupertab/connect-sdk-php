@@ -76,8 +76,9 @@ final class LicenseTokenClient
             return $cached;
         }
 
-        // 4. Request token
-        $tokenEndpoint = rtrim($endpoint->server, '/') . '/token';
+        // 4. Request token (both lanes construct TokenEndpoint with a
+        // normalized, trailing-slash-free server)
+        $tokenEndpoint = $endpoint->server . '/token';
 
         if ($this->debug) {
             error_log("[SupertabConnect] Requesting license token from {$tokenEndpoint}");
@@ -125,8 +126,10 @@ final class LicenseTokenClient
                 error_log("[SupertabConnect] Matched content block for resource URL: {$resourceUrl}");
             }
 
+            // Normalized once here so the cache key and the token URL agree
+            // even when license.xml writes the server with a trailing slash.
             return new TokenEndpoint(
-                server: $matched->server,
+                server: rtrim($matched->server, '/'),
                 scope: $matched->urlPattern,
                 matched: true,
                 licenseXml: $matched->licenseXml,

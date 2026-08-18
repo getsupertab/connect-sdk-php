@@ -35,7 +35,16 @@ final class ContentMatcher
             return null;
         }
 
-        $host = UrlCanonicalizer::canonicalHostFromParts($parsed);
+        // Canonicalize from the raw string: parse_url() corrupts some IDN hosts.
+        $host = UrlCanonicalizer::canonicalHost($resourceUrl);
+        if ($host === null) {
+            if ($debug) {
+                error_log("[SupertabConnect] Cannot canonicalize resource URL host: {$resourceUrl}");
+            }
+
+            return null;
+        }
+
         $path = UrlCanonicalizer::resolveDotSegments($parsed['path'] ?? '/');
 
         if ($debug) {
@@ -57,7 +66,7 @@ final class ContentMatcher
 
             if (isset($patternParsed['host'])) {
                 // Absolute URL pattern: canonical host must match
-                $patternHost = UrlCanonicalizer::canonicalHostFromParts($patternParsed);
+                $patternHost = UrlCanonicalizer::canonicalHost($block->urlPattern);
 
                 if ($patternHost !== $host) {
                     if ($debug) {

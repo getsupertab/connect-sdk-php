@@ -89,6 +89,19 @@ final class ContentMatcherTest extends TestCase
         $this->assertNotNull($result);
     }
 
+    #[\PHPUnit\Framework\Attributes\RequiresPhpExtension('intl')]
+    public function test_punycodes_idn_deviation_characters_nontransitionally(): void
+    {
+        // WHATWG domain-to-ASCII is nontransitional: faß.de → xn--fa-hia.de,
+        // never fass.de. Pins the explicit IDNA flags against ICU defaults
+        // that vary across environments.
+        $blocks = [$this->block('https://xn--fa-hia.de/*')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://faß.de/book');
+
+        $this->assertNotNull($result);
+    }
+
     private function block(string $urlPattern): ContentBlock
     {
         return new ContentBlock(

@@ -458,6 +458,50 @@ XML;
         $this->assertCount(2, $posts);
     }
 
+    public function test_normalizes_trailing_slash_server_for_endpoint_and_cache_key(): void
+    {
+        // Same effective server written with and without a trailing slash on
+        // two origins, same path-only pattern: one cache entry, one mint.
+        $xmlWithSlash = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="/articles/*" server="http://127.0.0.1:8787/">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+        $xmlWithoutSlash = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="/articles/*" server="http://127.0.0.1:8787">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturnCallback(fn (string $url) => [
+                'statusCode' => 200,
+                'body' => str_contains($url, 'site-a') ? $xmlWithSlash : $xmlWithoutSlash,
+            ]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://site-a.example/articles/foo');
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'http://site-b.example/articles/bar');
+
+        $this->assertCount(1, $posts);
+        $this->assertSame('http://127.0.0.1:8787/token', $posts[0]['url']);
+    }
+
     public function test_throws_when_resource_url_has_no_origin(): void
     {
         $httpClient = $this->createMock(HttpClientInterface::class);
