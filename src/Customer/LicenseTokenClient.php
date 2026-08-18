@@ -153,57 +153,24 @@ final class LicenseTokenClient
             return false;
         }
 
-        $serverHost = self::canonicalHost($server);
+        $serverHost = UrlCanonicalizer::canonicalHost($server);
 
-        return $serverHost !== null && $serverHost === self::canonicalHost($this->supertabBaseUrl);
+        return $serverHost !== null && $serverHost === UrlCanonicalizer::canonicalHost($this->supertabBaseUrl);
     }
 
     /**
-     * Derive the canonical origin (scheme://host[:port], lowercased, default
-     * port stripped) from the resource URL, mirroring the WHATWG URL origin
-     * the TypeScript SDK uses.
+     * Derive the canonical origin from the resource URL.
      *
      * @throws SupertabConnectException when the URL has no origin
      */
     private function buildOrigin(string $resourceUrl): string
     {
-        $parsed = parse_url($resourceUrl);
-        if ($parsed === false || ! isset($parsed['scheme'], $parsed['host'])) {
+        $origin = UrlCanonicalizer::canonicalOrigin($resourceUrl);
+        if ($origin === null) {
             throw new SupertabConnectException("Invalid resource URL: {$resourceUrl}");
         }
 
-        $scheme = strtolower($parsed['scheme']);
-        $origin = $scheme . '://' . strtolower($parsed['host']);
-        if (isset($parsed['port']) && ! self::isDefaultPort($scheme, $parsed['port'])) {
-            $origin .= ':' . $parsed['port'];
-        }
-
         return $origin;
-    }
-
-    /**
-     * The host (host[:port], lowercased, default port stripped) of a URL, or
-     * null when the URL has none. Mirrors the WHATWG URL host.
-     */
-    private static function canonicalHost(string $url): ?string
-    {
-        $parsed = parse_url($url);
-        if ($parsed === false || ! isset($parsed['host'])) {
-            return null;
-        }
-
-        $scheme = isset($parsed['scheme']) ? strtolower($parsed['scheme']) : '';
-        $host = strtolower($parsed['host']);
-        if (isset($parsed['port']) && ! self::isDefaultPort($scheme, $parsed['port'])) {
-            $host .= ':' . $parsed['port'];
-        }
-
-        return $host;
-    }
-
-    private static function isDefaultPort(string $scheme, int $port): bool
-    {
-        return ($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80);
     }
 
     /**

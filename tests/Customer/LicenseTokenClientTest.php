@@ -400,6 +400,41 @@ XML;
         $this->assertSame(['https://example.com/license.xml', 'https://example.com/license.xml'], $gets);
     }
 
+    public function test_canonicalized_resource_url_still_takes_matched_lane(): void
+    {
+        // Uppercase host and explicit default port must not push a licensed
+        // resource onto the Agreement lane.
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="http://example.com/*" server="http://127.0.0.1:8787">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+        $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => $xml]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $fakeToken) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $fakeToken])];
+            });
+
+        $client = new LicenseTokenClient($httpClient);
+        $client->obtainLicenseToken(self::CLIENT_ID, self::CLIENT_SECRET, 'HTTP://EXAMPLE.COM:80/article/foo');
+
+        $this->assertCount(1, $posts);
+        $this->assertSame('http://127.0.0.1:8787/token', $posts[0]['url']);
+
+        parse_str($posts[0]['body'], $params);
+        $this->assertArrayHasKey('license', $params);
+    }
+
     public function test_keeps_non_default_port_in_agreement_scope(): void
     {
         $fakeToken = $this->createFakeJwt(['exp' => time() + 3600]);

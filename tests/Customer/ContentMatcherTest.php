@@ -34,6 +34,70 @@ final class ContentMatcherTest extends TestCase
         ];
     }
 
+    public function test_matches_uppercase_host_and_default_port_in_resource(): void
+    {
+        $blocks = [$this->block('https://example.com/premium')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://EXAMPLE.COM:443/premium');
+
+        $this->assertNotNull($result);
+    }
+
+    public function test_matches_uppercase_host_and_default_port_in_pattern(): void
+    {
+        $blocks = [$this->block('https://EXAMPLE.com:443/premium')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://example.com/premium');
+
+        $this->assertNotNull($result);
+    }
+
+    public function test_resolves_dot_segments_in_resource_path(): void
+    {
+        $blocks = [$this->block('https://example.com/premium')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://example.com/a/../premium');
+
+        $this->assertNotNull($result);
+    }
+
+    public function test_resolves_percent_encoded_dot_segments_in_resource_path(): void
+    {
+        $blocks = [$this->block('https://example.com/premium')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://example.com/%2e%2e/premium');
+
+        $this->assertNotNull($result);
+    }
+
+    public function test_resolves_dot_segments_in_pattern_path(): void
+    {
+        $blocks = [$this->block('https://example.com/a/../premium')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://example.com/premium');
+
+        $this->assertNotNull($result);
+    }
+
+    #[\PHPUnit\Framework\Attributes\RequiresPhpExtension('intl')]
+    public function test_matches_idn_host_against_punycode_pattern(): void
+    {
+        $blocks = [$this->block('https://xn--bcher-kva.example/*')];
+
+        $result = ContentMatcher::findBestMatch($blocks, 'https://bücher.example/book');
+
+        $this->assertNotNull($result);
+    }
+
+    private function block(string $urlPattern): ContentBlock
+    {
+        return new ContentBlock(
+            urlPattern: $urlPattern,
+            server: 'http://127.0.0.1:8787',
+            licenseXml: '<license><link rel="self" /></license>',
+        );
+    }
+
     public function test_exact_path_match_wins(): void
     {
         $result = ContentMatcher::findBestMatch($this->blocks, 'http://127.0.0.1:7676/article/');

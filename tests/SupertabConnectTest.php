@@ -94,6 +94,48 @@ final class SupertabConnectTest extends TestCase
         $this->assertSame('http://override.test/token', $posts[0]['url']);
     }
 
+    public function test_static_obtain_license_token_shares_token_cache_across_calls(): void
+    {
+        // The facade constructs a fresh LicenseTokenClient per call; the token
+        // cache must survive that, mirroring the TS SDK's module-level cache.
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rsl>
+  <content url="http://127.0.0.1:7676/article/*" server="http://127.0.0.1:8787">
+    <license type="test"><link rel="self" /></license>
+  </content>
+</rsl>
+XML;
+        $b64 = fn (array $data) => rtrim(strtr(base64_encode((string) json_encode($data)), '+/', '-_'), '=');
+        $jwt = $b64(['alg' => 'ES256', 'typ' => 'JWT']) . '.' . $b64(['exp' => time() + 3600]) . '.sig';
+        $posts = [];
+
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $httpClient->method('get')
+            ->willReturn(['statusCode' => 200, 'body' => $xml]);
+        $httpClient->method('post')
+            ->willReturnCallback(function (string $url, string $body) use (&$posts, $jwt) {
+                $posts[] = ['url' => $url, 'body' => $body];
+
+                return ['statusCode' => 200, 'body' => json_encode(['access_token' => $jwt])];
+            });
+
+        SupertabConnect::obtainLicenseToken(
+            clientId: 'client',
+            clientSecret: 'secret',
+            resourceUrl: 'http://127.0.0.1:7676/article/foo',
+            httpClient: $httpClient,
+        );
+        SupertabConnect::obtainLicenseToken(
+            clientId: 'client',
+            clientSecret: 'secret',
+            resourceUrl: 'http://127.0.0.1:7676/article/bar',
+            httpClient: $httpClient,
+        );
+
+        $this->assertCount(1, $posts);
+    }
+
     /**
      * HTTP client stub whose license.xml matches nothing, so the mint takes the
      * Agreement lane; captures every token POST into $posts.

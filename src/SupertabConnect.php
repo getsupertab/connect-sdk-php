@@ -16,6 +16,7 @@ use Supertab\Connect\Analytics\TokenOutcomeMapper;
 use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Cache\CacheInterface;
 use Supertab\Connect\Customer\LicenseTokenClient;
+use Supertab\Connect\Customer\TokenCache;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
 use Supertab\Connect\Event\EventRecorder;
@@ -49,6 +50,13 @@ final class SupertabConnect
     private static string $analyticsBaseUrl = 'https://ingest-connect.supertab.co';
 
     private static ?self $instance = null;
+
+    /**
+     * Token cache shared across static obtainLicenseToken() calls, which each
+     * construct a fresh LicenseTokenClient. Mirrors the TS SDK's module-level
+     * cache; reset via resetInstance().
+     */
+    private static ?TokenCache $licenseTokenCache = null;
 
     private readonly LicenseTokenVerifier $verifier;
 
@@ -199,6 +207,7 @@ final class SupertabConnect
     public static function resetInstance(): void
     {
         self::$instance = null;
+        self::$licenseTokenCache = null;
     }
 
     /**
@@ -354,6 +363,7 @@ final class SupertabConnect
         $client = new LicenseTokenClient(
             httpClient: $httpClient ?? new HttpClient,
             debug: $debug,
+            cache: self::$licenseTokenCache ??= new TokenCache,
             supertabBaseUrl: $baseUrl ?? self::$baseUrl,
         );
 
