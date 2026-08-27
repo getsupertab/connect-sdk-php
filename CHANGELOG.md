@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-08-27
+
+Re-release of 2.0.0 with no code changes. Packagist crawled an early,
+retracted v2.0.0 tag, and its version immutability policy locked that version
+to the retracted commit, so 2.0.0 is not installable via Packagist. The stable
+2.x line therefore starts at 2.0.1 there. The v2.0.0 tag and GitHub release
+remain for reference.
+
 ## [2.0.0] - 2026-08-27
 
 Consolidates the 1.4.0-beta series (beta.1 through beta.11) into a stable
@@ -124,6 +132,7 @@ below.
   matching, JWKS caching with a pluggable cache interface, and non-intrusive
   result handling that leaves the host response untouched.
 
+[2.0.1]: https://github.com/getsupertab/connect-sdk-php/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/getsupertab/connect-sdk-php/compare/v1.3.1...v2.0.0
 [1.3.1]: https://github.com/getsupertab/connect-sdk-php/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/getsupertab/connect-sdk-php/compare/v1.2.0...v1.3.0
