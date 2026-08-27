@@ -16,6 +16,7 @@ use Supertab\Connect\Analytics\TokenOutcomeMapper;
 use Supertab\Connect\Bot\BotDetectorInterface;
 use Supertab\Connect\Cache\CacheInterface;
 use Supertab\Connect\Customer\LicenseTokenClient;
+use Supertab\Connect\Customer\TokenCache;
 use Supertab\Connect\Enum\EnforcementMode;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
 use Supertab\Connect\Event\EventRecorder;
@@ -49,6 +50,13 @@ final class SupertabConnect
     private static string $analyticsBaseUrl = 'https://ingest-connect.supertab.co';
 
     private static ?self $instance = null;
+
+    /**
+     * Token cache shared across static obtainLicenseToken() calls, which each
+     * construct a fresh LicenseTokenClient. Mirrors the TS SDK's module-level
+     * cache; reset via resetInstance().
+     */
+    private static ?TokenCache $licenseTokenCache = null;
 
     private readonly LicenseTokenVerifier $verifier;
 
@@ -199,6 +207,7 @@ final class SupertabConnect
     public static function resetInstance(): void
     {
         self::$instance = null;
+        self::$licenseTokenCache = null;
     }
 
     /**
@@ -329,8 +338,17 @@ final class SupertabConnect
     /**
      * Obtain a license token for accessing a protected resource.
      *
-     * Uses the OAuth2 client_credentials flow via the resource's license.xml.
-     * Does not require a SupertabConnect instance.
+     * Uses the OAuth2 client_credentials flow via the resource's license.xml,
+     * on one of two lanes:
+     *  - RSL License lane: a <content> block path-matches the resource, so the
+     *    <license> chunk goes to that block's own URN-scoped {server}/token.
+     *  - Agreement lane: nothing matches, so the chunk is omitted and the
+     *    request goes license-less to the generic {baseUrl}/token, where the
+     *    backend resolves the merchant system from the resource URL and the
+     *    customer's single Active Agreement.
+     *
+     * Does not require a SupertabConnect instance. $baseUrl overrides the
+     * Supertab API base for this call only; it defaults to getBaseUrl().
      *
      * @throws SupertabConnectException on any failure
      */
@@ -340,10 +358,13 @@ final class SupertabConnect
         string $resourceUrl,
         bool $debug = false,
         ?HttpClientInterface $httpClient = null,
+        ?string $baseUrl = null,
     ): string {
         $client = new LicenseTokenClient(
             httpClient: $httpClient ?? new HttpClient,
             debug: $debug,
+            cache: self::$licenseTokenCache ??= new TokenCache,
+            supertabBaseUrl: $baseUrl ?? self::$baseUrl,
         );
 
         return $client->obtainLicenseToken($clientId, $clientSecret, $resourceUrl);

@@ -11,8 +11,10 @@ final class LicenseXmlParser
      *
      * Each valid <content> element must have:
      *  - A `url` attribute (the URL pattern)
-     *  - A `server` attribute (the token endpoint base)
      *  - A nested `<license>` element (preserved as raw XML)
+     *
+     * The `server` attribute (the token endpoint base) is optional; blocks
+     * without one are kept with a null server and never mint directly.
      *
      * @return list<ContentBlock>
      */
@@ -70,16 +72,15 @@ final class LicenseXmlParser
                 ? $licenseNode->asXML()
                 : null;
 
-            if ($url !== null && $url !== '' && $server !== null && $server !== '' && $licenseXml !== null && $licenseXml !== false) {
+            if ($url !== null && $url !== '' && $licenseXml !== null && $licenseXml !== false) {
                 $contentBlocks[] = new ContentBlock(
                     urlPattern: $url,
-                    server: $server,
+                    server: ($server !== null && $server !== '') ? $server : null,
                     licenseXml: $licenseXml,
                 );
             } elseif ($debug) {
                 $missing = array_filter([
                     ($url === null || $url === '') ? 'url' : null,
-                    ($server === null || $server === '') ? 'server' : null,
                     ($licenseXml === null || $licenseXml === false) ? '<license>' : null,
                 ]);
                 error_log("[SupertabConnect] Skipping <content> element #{$elementCount}: missing " . implode(', ', $missing));

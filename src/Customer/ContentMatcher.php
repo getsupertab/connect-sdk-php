@@ -10,7 +10,10 @@ final class ContentMatcher
      * Find the best matching content block for the given resource URL.
      *
      * Matching rules:
-     *  1. Host (including port) must match exactly
+     *  1. Canonical host (including non-default port) must match exactly;
+     *     hosts are compared via UrlCanonicalizer (lowercased, punycoded,
+     *     default ports stripped) and dot segments in paths are resolved,
+     *     mirroring the WHATWG URL parsing the TypeScript SDK gets for free
      *  2. Exact path match returns immediately (highest priority)
      *  3. Robots.txt-style pattern matching via scorePathPattern():
      *     - `*` matches zero or more characters (including `/`)
@@ -32,8 +35,17 @@ final class ContentMatcher
             return null;
         }
 
-        $host = self::extractHost($parsed);
-        $path = $parsed['path'] ?? '/';
+        // Canonicalize from the raw string: parse_url() corrupts some IDN hosts.
+        $host = UrlCanonicalizer::canonicalHost($resourceUrl);
+        if ($host === null) {
+            if ($debug) {
+                error_log("[SupertabConnect] Cannot canonicalize resource URL host: {$resourceUrl}");
+            }
+
+            return null;
+        }
+
+        $path = UrlCanonicalizer::resolveDotSegments($parsed['path'] ?? '/');
 
         if ($debug) {
             error_log("[SupertabConnect] Matching resource URL: {$resourceUrl} (host={$host}, path={$path})");
@@ -53,8 +65,8 @@ final class ContentMatcher
             }
 
             if (isset($patternParsed['host'])) {
-                // Absolute URL pattern: host must match
-                $patternHost = self::extractHost($patternParsed);
+                // Absolute URL pattern: canonical host must match
+                $patternHost = UrlCanonicalizer::canonicalHost($block->urlPattern);
 
                 if ($patternHost !== $host) {
                     if ($debug) {
@@ -64,7 +76,7 @@ final class ContentMatcher
                     continue;
                 }
 
-                $patternPath = $patternParsed['path'] ?? '/';
+                $patternPath = UrlCanonicalizer::resolveDotSegments($patternParsed['path'] ?? '/');
             } else {
                 // Path-only pattern: must start with `/` and have no scheme.
                 // Rejects malformed absolute URLs like "https:/content/*".
@@ -152,20 +164,5 @@ final class ContentMatcher
         }
 
         return -1;
-    }
-
-    /**
-     * Extract the host string including port.
-     *
-     * @param  array<string, mixed>  $parsed
-     */
-    private static function extractHost(array $parsed): string
-    {
-        $host = (string) $parsed['host'];
-        if (isset($parsed['port'])) {
-            $host .= ':' . $parsed['port'];
-        }
-
-        return $host;
     }
 }
