@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-13
+
+### Changed
+
+- `handleRequest()` no longer sends the RSL license `Link` header
+  (`Link: <…/license.xml>; rel="license"; type="application/rsl+xml"`) on
+  plain allowed responses: non-bot requests, valid tokens and `DISABLED`
+  mode. It is still sent on the `OBSERVE` missing-token signal and on every
+  blocked response, which matches the TypeScript SDK. Reverts #15.
+  `ResponseBuilder` method signatures are unchanged.
+
 ## [2.0.1] - 2026-08-27
 
 Re-release of 2.0.0 with no code changes. Packagist crawled an early,

@@ -11,16 +11,16 @@ use Supertab\Connect\Result\BlockResult;
 final class ResponseBuilder
 {
     /**
-     * Build an allowed result that advertises the governing RSL license via the
-     * Link header. Per the RSL Crawler Authorization Protocol, served responses
-     * must reference the license so clients can discover the terms — independent
-     * of enforcement mode or bot detection.
+     * Build an allowed result. A plain allow (non-bot, valid token, DISABLED)
+     * carries no RSL headers: the license is advertised only once the request
+     * is treated as a bot's, on the OBSERVE signal and on blocks. Matches the
+     * TypeScript SDK.
+     *
+     * `$requestUrl` is unused and kept for signature compatibility.
      */
     public static function buildAllowResult(string $requestUrl): AllowResult
     {
-        return new AllowResult([
-            'Link' => self::licenseLinkHeader($requestUrl),
-        ]);
+        return new AllowResult;
     }
 
     /**

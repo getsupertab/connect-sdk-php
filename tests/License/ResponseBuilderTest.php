@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Supertab\Connect\Tests\License;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Supertab\Connect\Enum\HandlerAction;
 use Supertab\Connect\Enum\LicenseTokenInvalidReason;
@@ -19,24 +20,47 @@ final class ResponseBuilderTest extends TestCase
 
         $this->assertInstanceOf(AllowResult::class, $result);
         $this->assertSame(HandlerAction::ALLOW, $result->action);
-        $this->assertSame('token_required', $result->headers['X-RSL-Status']);
-        $this->assertSame('missing', $result->headers['X-RSL-Reason']);
-        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
-        $this->assertStringContainsString('rel="license"', $result->headers['Link']);
+        // Matches the TypeScript SDK: the bot signal advertises the license.
+        $this->assertSame(
+            [
+                'Link' => '<https://example.com/license.xml>; rel="license"; type="application/rsl+xml"',
+                'X-RSL-Status' => 'token_required',
+                'X-RSL-Reason' => 'missing',
+            ],
+            $result->headers,
+        );
     }
 
-    public function test_build_allow_result_advertises_license_link(): void
+    public function test_build_allow_result_carries_no_headers(): void
     {
         $result = ResponseBuilder::buildAllowResult('https://example.com/article');
 
         $this->assertInstanceOf(AllowResult::class, $result);
         $this->assertSame(HandlerAction::ALLOW, $result->action);
-        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
-        $this->assertStringContainsString('rel="license"', $result->headers['Link']);
-        $this->assertStringContainsString('type="application/rsl+xml"', $result->headers['Link']);
-        // Discovery only — the request-state signal headers stay on the soft-signal path.
-        $this->assertArrayNotHasKey('X-RSL-Status', $result->headers);
-        $this->assertArrayNotHasKey('X-RSL-Reason', $result->headers);
+        $this->assertSame([], $result->headers);
+    }
+
+    #[DataProvider('blockReasonProvider')]
+    public function test_every_block_result_advertises_license_link(LicenseTokenInvalidReason|string $reason): void
+    {
+        $result = ResponseBuilder::buildBlockResult($reason, 'error', 'https://example.com/article');
+
+        $this->assertSame(
+            '<https://example.com/license.xml>; rel="license"; type="application/rsl+xml"',
+            $result->headers['Link'],
+        );
+    }
+
+    /**
+     * @return iterable<string, array{LicenseTokenInvalidReason|string}>
+     */
+    public static function blockReasonProvider(): iterable
+    {
+        foreach (LicenseTokenInvalidReason::cases() as $reason) {
+            yield $reason->value => [$reason];
+        }
+
+        yield 'string reason' => ['custom_reason'];
     }
 
     public function test_build_block_result_missing_token(): void
