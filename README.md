@@ -80,6 +80,8 @@ The `EnforcementMode` enum controls how `handleRequest()` responds to detected b
 
 Default is `OBSERVE`.
 
+The license is advertised with `Link: <…/license.xml>; rel="license"` on the `OBSERVE` signal and on blocked responses only. Plain allowed responses (non-bot, valid token, `DISABLED`) carry no RSL headers.
+
 ---
 
 ## Analytics

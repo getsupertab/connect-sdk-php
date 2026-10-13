@@ -283,9 +283,9 @@ XML;
         $this->assertArrayHasKey('X-RSL-Status', $result->headers);
     }
 
-    // --- RSL discovery: Link header on allowed responses ---
+    // --- RSL discovery: Link header on bot signals and blocks, never on plain allows ---
 
-    public function test_handle_request_disabled_no_token_advertises_license_link(): void
+    public function test_handle_request_disabled_no_token_sends_no_license_link(): void
     {
         $stc = new SupertabConnect(
             apiKey: 'test-key',
@@ -298,11 +298,10 @@ XML;
         ));
 
         $this->assertInstanceOf(AllowResult::class, $result);
-        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
-        $this->assertStringContainsString('rel="license"', $result->headers['Link']);
+        $this->assertArrayNotHasKey('Link', $result->headers);
     }
 
-    public function test_handle_request_disabled_with_token_advertises_license_link(): void
+    public function test_handle_request_disabled_with_token_sends_no_license_link(): void
     {
         $stc = new SupertabConnect(
             apiKey: 'test-key',
@@ -315,10 +314,10 @@ XML;
         ));
 
         $this->assertInstanceOf(AllowResult::class, $result);
-        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+        $this->assertArrayNotHasKey('Link', $result->headers);
     }
 
-    public function test_handle_request_non_bot_allow_advertises_license_link(): void
+    public function test_handle_request_non_bot_allow_sends_no_license_link(): void
     {
         $botDetector = $this->createMock(BotDetectorInterface::class);
         $botDetector->method('isBot')->willReturn(false);
@@ -335,10 +334,10 @@ XML;
         ));
 
         $this->assertInstanceOf(AllowResult::class, $result);
-        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+        $this->assertArrayNotHasKey('Link', $result->headers);
     }
 
-    public function test_handle_request_bot_disabled_allow_advertises_license_link(): void
+    public function test_handle_request_bot_disabled_allow_sends_no_license_link(): void
     {
         $botDetector = $this->createMock(BotDetectorInterface::class);
         $botDetector->method('isBot')->willReturn(true);
@@ -355,7 +354,7 @@ XML;
         ));
 
         $this->assertInstanceOf(AllowResult::class, $result);
-        $this->assertStringContainsString('https://example.com/license.xml', $result->headers['Link']);
+        $this->assertArrayNotHasKey('Link', $result->headers);
     }
 
     public function test_handle_request_observe_signal_keeps_link_and_custom_headers(): void
@@ -378,6 +377,76 @@ XML;
         $this->assertStringContainsString('rel="license"', $result->headers['Link']);
         $this->assertSame('token_required', $result->headers['X-RSL-Status']);
         $this->assertSame('missing', $result->headers['X-RSL-Reason']);
+    }
+
+    public function test_handle_request_enforce_bot_without_token_block_advertises_license_link(): void
+    {
+        $botDetector = $this->createMock(BotDetectorInterface::class);
+        $botDetector->method('isBot')->willReturn(true);
+
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::ENFORCE,
+            botDetector: $botDetector,
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: null,
+        ));
+
+        $this->assertInstanceOf(BlockResult::class, $result);
+        $this->assertStringContainsString('<https://example.com/license.xml>; rel="license"', $result->headers['Link']);
+    }
+
+    public function test_handle_request_invalid_token_block_advertises_license_link(): void
+    {
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::OBSERVE,
+            httpClient: $this->createEventSinkHttpClient(),
+        );
+
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: 'License not-a-real-jwt',
+        ));
+
+        $this->assertInstanceOf(BlockResult::class, $result);
+        $this->assertSame(401, $result->status);
+        $this->assertStringContainsString('<https://example.com/license.xml>; rel="license"', $result->headers['Link']);
+    }
+
+    public function test_handle_request_empty_license_token_block_advertises_license_link(): void
+    {
+        $stc = new SupertabConnect(
+            apiKey: 'test-key',
+            enforcement: EnforcementMode::OBSERVE,
+            httpClient: $this->createEventSinkHttpClient(),
+        );
+
+        // "License " with nothing after it takes the token-present path as MISSING_TOKEN.
+        $result = $stc->handleRequest(new RequestContext(
+            url: 'https://example.com/article',
+            authorizationHeader: 'License ',
+        ));
+
+        $this->assertInstanceOf(BlockResult::class, $result);
+        $this->assertSame(401, $result->status);
+        $this->assertStringContainsString('invalid_request', $result->headers['WWW-Authenticate']);
+        $this->assertStringContainsString('<https://example.com/license.xml>; rel="license"', $result->headers['Link']);
+    }
+
+    /**
+     * HTTP client that accepts the fire-and-forget billing event POST that the
+     * token-present path records, so these tests never touch the network.
+     */
+    private function createEventSinkHttpClient(): HttpClientInterface
+    {
+        $httpClient = $this->createStub(HttpClientInterface::class);
+        $httpClient->method('post')->willReturn(['statusCode' => 200, 'body' => '']);
+
+        return $httpClient;
     }
 
     // --- Bot Detection Integration ---
