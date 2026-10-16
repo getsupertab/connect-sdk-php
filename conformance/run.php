@@ -102,12 +102,9 @@ function surface_customer_match(array $in): array
     $client = new LicenseTokenClient(new HttpClient(), false, null, MOCK_ORIGIN);
     $endpoint = (fn (string $url) => $this->selectTokenEndpoint($blocks, $url, $this->buildOrigin($url)))
         ->call($client, $in['resource_url']);
-    if (! $endpoint->matched) {
-        return ['matched' => false, 'matched_url_pattern' => null, 'token_server' => null, 'requires_token' => false];
-    }
     return [
-        'matched' => true,
-        'matched_url_pattern' => $endpoint->scope,
+        'matched' => $endpoint->matched,
+        'matched_url_pattern' => $endpoint->matched ? $endpoint->scope : null,
         'token_server' => $endpoint->server,
         'requires_token' => true,
     ];
