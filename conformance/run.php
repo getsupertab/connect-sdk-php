@@ -120,6 +120,7 @@ function surface_customer_obtain(array $in): array
             $in['client_id'],
             $in['client_secret'],
             $in['resource_url'],
+            baseUrl: MOCK_ORIGIN,
         );
     } catch (\Throwable $e) {
         return ['outcome' => 'error'];
