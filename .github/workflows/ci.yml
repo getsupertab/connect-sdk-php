@@ -69,3 +69,54 @@ jobs:
 
       - name: Check code style
         run: composer lint:check
+
+  conformance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Mint conformance repo token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CONFORMANCE_APP_ID }}
+          private-key: ${{ secrets.CONFORMANCE_APP_PRIVATE_KEY }}
+          owner: getsupertab
+          repositories: connect-sdk-conformance
+
+      - name: Check out conformance suite (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: getsupertab/connect-sdk-conformance
+          ref: v0.4.0
+          token: ${{ steps.app-token.outputs.token }}
+          path: _conformance
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: curl, json, openssl, simplexml
+          coverage: none
+          tools: composer:v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Install conformance dependencies
+        run: npm ci
+        working-directory: _conformance
+
+      - name: Run conformance corpus (PHP runner)
+        run: npm run conformance
+        working-directory: _conformance
+        env:
+          STC_PHP_RUNNER_CWD: ${{ github.workspace }}
+          STC_ONLY: php
