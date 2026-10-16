@@ -82,7 +82,7 @@ jobs:
         with:
           repository: getsupertab/connect-sdk-conformance
           ref: v0.4.0
-          token: ${{ secrets.CONFORMANCE_REPO_TOKEN }}
+          ssh-key: ${{ secrets.CONFORMANCE_DEPLOY_KEY }}
           path: _conformance
 
       - name: Setup PHP
