@@ -243,8 +243,9 @@ final class SupertabConnectStatusTest extends TestCase
         return [
             'kty' => 'EC',
             'crv' => 'P-256',
-            'x' => $this->base64UrlEncode($details['ec']['x']),
-            'y' => $this->base64UrlEncode($details['ec']['y']),
+            // OpenSSL strips leading zero bytes; a JWK coordinate must be the full 32 bytes.
+            'x' => $this->base64UrlEncode(str_pad($details['ec']['x'], 32, "\0", STR_PAD_LEFT)),
+            'y' => $this->base64UrlEncode(str_pad($details['ec']['y'], 32, "\0", STR_PAD_LEFT)),
             'kid' => $kid,
             'alg' => 'ES256',
             'use' => 'sig',
