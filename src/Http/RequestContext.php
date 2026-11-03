@@ -70,28 +70,40 @@ final class RequestContext
      */
     public static function fromGlobals(): self
     {
-        $scheme = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
-        $uri = $_SERVER['REQUEST_URI'] ?? '/';
-        $url = "{$scheme}://{$host}{$uri}";
-
-        $authorization = self::resolveAuthorizationHeader(
+        return self::fromServer(
             $_SERVER,
             function_exists('getallheaders') ? (getallheaders() ?: []) : [],
         );
+    }
 
-        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
-        $accept = $_SERVER['HTTP_ACCEPT'] ?? null;
-        $acceptLanguage = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null;
-        $secChUa = $_SERVER['HTTP_SEC_CH_UA'] ?? null;
+    /**
+     * Build a RequestContext from a $_SERVER-shaped array, for hosts that
+     * pre-process $_SERVER (e.g. WordPress adds slashes to it).
+     *
+     * @param array<string, mixed> $server $_SERVER-shaped array
+     * @param array<string, mixed> $requestHeaders Raw request headers as reported by getallheaders()
+     */
+    public static function fromServer(array $server, array $requestHeaders = []): self
+    {
+        $scheme = (! empty($server['HTTPS']) && $server['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $server['HTTP_HOST'] ?? $server['SERVER_NAME'] ?? 'localhost';
+        $uri = $server['REQUEST_URI'] ?? '/';
+        $url = "{$scheme}://{$host}{$uri}";
+
+        $authorization = self::resolveAuthorizationHeader($server, $requestHeaders);
+
+        $userAgent = $server['HTTP_USER_AGENT'] ?? null;
+        $accept = $server['HTTP_ACCEPT'] ?? null;
+        $acceptLanguage = $server['HTTP_ACCEPT_LANGUAGE'] ?? null;
+        $secChUa = $server['HTTP_SEC_CH_UA'] ?? null;
 
         // Analytics signals available natively at the origin.
-        $method = $_SERVER['REQUEST_METHOD'] ?? null;
-        $clientIp = $_SERVER['REMOTE_ADDR'] ?? null;
-        $requestId = $_SERVER['HTTP_X_REQUEST_ID'] ?? null;
+        $method = $server['REQUEST_METHOD'] ?? null;
+        $clientIp = $server['REMOTE_ADDR'] ?? null;
+        $requestId = $server['HTTP_X_REQUEST_ID'] ?? null;
 
         $headers = [];
-        foreach ($_SERVER as $key => $value) {
+        foreach ($server as $key => $value) {
             if (! is_string($key) || ! is_string($value)) {
                 continue;
             }

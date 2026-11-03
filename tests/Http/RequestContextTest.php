@@ -137,4 +137,23 @@ final class RequestContextTest extends TestCase
             $_SERVER = $original;
         }
     }
+
+    public function test_from_server_reads_the_given_array_not_globals(): void
+    {
+        $ctx = RequestContext::fromServer(
+            [
+                'HTTPS' => 'on',
+                'HTTP_HOST' => 'example.com',
+                'REQUEST_URI' => '/article',
+                'HTTP_USER_AGENT' => 'ExaBot',
+                'HTTP_SIGNATURE_AGENT' => '"https://crawler.exa.ai"',
+            ],
+            ['Authorization' => 'License abc'],
+        );
+
+        $this->assertSame('https://example.com/article', $ctx->url);
+        $this->assertSame('ExaBot', $ctx->userAgent);
+        $this->assertSame('"https://crawler.exa.ai"', $ctx->headers['signature-agent']);
+        $this->assertSame('License abc', $ctx->authorizationHeader);
+    }
 }
