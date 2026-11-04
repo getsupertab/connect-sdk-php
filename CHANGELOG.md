@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-11-04
 
 ### Added
 
@@ -161,6 +161,8 @@ below.
   matching, JWKS caching with a pluggable cache interface, and non-intrusive
   result handling that leaves the host response untouched.
 
+[2.2.0]: https://github.com/getsupertab/connect-sdk-php/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/getsupertab/connect-sdk-php/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/getsupertab/connect-sdk-php/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/getsupertab/connect-sdk-php/compare/v1.3.1...v2.0.0
 [1.3.1]: https://github.com/getsupertab/connect-sdk-php/compare/v1.3.0...v1.3.1
