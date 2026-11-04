@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-11-04
+
+### Added
+
+- `RequestContext::fromServer(array $server, array $requestHeaders = [])`
+  builds a context from a `$_SERVER`-shaped array. Hosts that modify
+  `$_SERVER` can pass a cleaned copy. WordPress, for example, adds
+  backslashes to it, which broke signature verification for plugin
+  merchants. `fromGlobals()` now delegates to it and behaves the same.
+
+### Internal
+
+- Added `conformance/run.php`, the PHP runner for the cross-SDK parity suite
+  (#31). CI now runs the conformance corpus, pinned to v0.5.0 (#33, #34).
+- On a no-match, the conformance runner now reports the SDK's Agreement-lane
+  result instead of "no token needed" (#34).
+- Fixed a flaky status test by padding EC coordinates in the test JWK (#32).
+
 ## [2.1.0] - 2026-10-13
 
 ### Changed
@@ -143,6 +161,8 @@ below.
   matching, JWKS caching with a pluggable cache interface, and non-intrusive
   result handling that leaves the host response untouched.
 
+[2.2.0]: https://github.com/getsupertab/connect-sdk-php/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/getsupertab/connect-sdk-php/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/getsupertab/connect-sdk-php/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/getsupertab/connect-sdk-php/compare/v1.3.1...v2.0.0
 [1.3.1]: https://github.com/getsupertab/connect-sdk-php/compare/v1.3.0...v1.3.1
